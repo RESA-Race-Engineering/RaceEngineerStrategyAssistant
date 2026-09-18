@@ -287,7 +287,6 @@ class RaceDatabase:
 
         return cursor.lastrowid
 
-
     def get_laps(
         self,
         race_id: int,
@@ -323,7 +322,6 @@ class RaceDatabase:
             )
 
         return cursor.fetchall()
-
 
     def create_stint(
         self,
@@ -406,7 +404,6 @@ class RaceDatabase:
 
         return cursor.fetchall()
 
-
     def create_pit_stop(
         self,
         race_id: int,
@@ -419,6 +416,8 @@ class RaceDatabase:
         refuel: bool,
         tire_change: bool,
     ) -> int:
+        """Salva un pit stop nel database."""
+
         cursor = self.connection.cursor()
 
         cursor.execute(
@@ -458,6 +457,8 @@ class RaceDatabase:
         race_id: int,
         kart_id: int | None = None,
     ):
+        """Recupera i pit stop di una gara."""
+
         cursor = self.connection.cursor()
 
         if kart_id is None:
@@ -545,11 +546,11 @@ class RaceDatabase:
         return cursor.fetchall()
 
     def update_stint_start(
-    self,
-    race_id: int,
-    kart_id: int,
-    stint_number: int,
-    start_time_ms: int,
+        self,
+        race_id: int,
+        kart_id: int,
+        stint_number: int,
+        start_time_ms: int,
     ):
         """Aggiorna il tempo di inizio di uno stint."""
 
@@ -569,107 +570,20 @@ class RaceDatabase:
                 kart_id,
                 stint_number,
             ),
-            )
-
-        self.connection.commit()
-
-        def update_stint_end(
-            self,
-            race_id: int,
-            kart_id: int,
-            stint_number: int,
-            end_time_ms: int | None,
-            end_lap: int | None,
-        ):
-            """Aggiorna la fine di uno stint."""
-
-            cursor = self.connection.cursor()
-
-            cursor.execute(
-                """
-                UPDATE stints
-                SET end_time_ms = ?,
-                    end_lap = ?
-                WHERE race_id = ?
-                AND kart_id = ?
-                AND stint_number = ?
-                """,
-                (
-                    end_time_ms,
-                    end_lap,
-                    race_id,
-                    kart_id,
-                    stint_number,
-                ),
-            )
-
-            self.connection.commit()
-
-    def update_stint_start(
-    self,
-    race_id: int,
-    kart_id: int,
-    stint_number: int,
-    start_time_ms: int,
-    ):
-        cursor = self.connection.cursor()
-
-        cursor.execute(
-            """
-            UPDATE stints
-            SET start_time_ms = ?
-            WHERE race_id = ?
-            AND kart_id = ?
-            AND stint_number = ?
-            """,
-            (
-                start_time_ms,
-                race_id,
-                kart_id,
-                stint_number,
-            ),
         )
 
         self.connection.commit()
 
     def update_stint_end(
-    self,
-    race_id: int,
-    kart_id: int,
-    stint_number: int,
-    end_time_ms: int | None,
-    end_lap: int | None,
+        self,
+        race_id: int,
+        kart_id: int,
+        stint_number: int,
+        end_time_ms: int | None,
+        end_lap: int | None,
     ):
-        cursor = self.connection.cursor()
+        """Aggiorna la fine di uno stint."""
 
-        cursor.execute(
-            """
-            UPDATE stints
-            SET end_time_ms = ?,
-                end_lap = ?
-            WHERE race_id = ?
-            AND kart_id = ?
-            AND stint_number = ?
-            """,
-            (
-                end_time_ms,
-                end_lap,
-                race_id,
-                kart_id,
-                stint_number,
-            ),
-        )
-
-        self.connection.commit()
-
-    def update_stint_end(
-    self,
-    race_id: int,
-    kart_id: int,
-    stint_number: int,
-    end_time_ms: int | None,
-    end_lap: int | None,
-    ):
         cursor = self.connection.cursor()
 
         cursor.execute(
@@ -693,4 +607,6 @@ class RaceDatabase:
         self.connection.commit()
 
     def close(self):
+        """Chiude la connessione al database."""
+
         self.connection.close()
