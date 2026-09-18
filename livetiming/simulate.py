@@ -188,11 +188,11 @@ class RaceSimulator:
             for index, name in enumerate(names)
         ]
 
-        # La nostra squadra lotta per il podio e ha un pilota
-        # decisamente più lento: così le analisi hanno qualcosa da
-        # mostrare.
-        self.teams[0].offset_ms = -350
-        self.teams[0].driver_offsets_ms = [-150, 50, 150, -100, 650, 250]
+        # La nostra squadra gira nelle prime posizioni e ha un pilota
+        # (il quinto) decisamente più lento: così le analisi hanno
+        # qualcosa da mostrare.
+        self.teams[0].offset_ms = -700
+        self.teams[0].driver_offsets_ms = [-150, 50, 150, -100, 1000, 250]
 
         self._first_cross_ms: dict[int, int] = {}
         self._events: list[_Event] = []
