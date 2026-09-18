@@ -93,16 +93,12 @@ class Stint:
 
 @dataclass
 class PitStop:
-    """Pit stop / cambio pilota."""
-
-    kart_id: int
+    kart_out_id: int
+    kart_in_id: int
     lap_before: int
-
     driver_out: Optional[int] = None
     driver_in: Optional[int] = None
-
     duration_ms: Optional[int] = None
-
     refuel: bool = False
     tire_change: bool = False
 

@@ -7,12 +7,11 @@ def start_stint(
     driver_id: int,
     start_lap: int = 0,
     start_time_ms: int = 0,
+    db=None,
+    race_id: int | None = None,
 ) -> Stint:
-    """
-    Crea e apre un nuovo stint per un kart.
-    """
+    """Avvia un nuovo stint."""
 
-    # Controlla che il kart esista.
     kart_exists = any(
         kart.id == kart_id
         for kart in race.karts
@@ -23,7 +22,6 @@ def start_stint(
             f"Il Kart {kart_id} non esiste nella gara."
         )
 
-    # Controlla che il pilota esista.
     driver_exists = any(
         driver.id == driver_id
         for driver in race.drivers
@@ -34,8 +32,6 @@ def start_stint(
             f"Il Pilota {driver_id} non esiste nella gara."
         )
 
-    # Controlla che non esista già uno stint aperto
-    # per questo kart.
     for stint in race.stints:
         if (
             stint.kart_id == kart_id
@@ -45,8 +41,6 @@ def start_stint(
                 f"Il Kart {kart_id} ha già uno stint aperto."
             )
 
-    # Determina il prossimo numero di stint
-    # per questo kart.
     kart_stints = [
         stint
         for stint in race.stints
@@ -55,7 +49,6 @@ def start_stint(
 
     next_stint_number = len(kart_stints) + 1
 
-    # Crea il nuovo stint.
     stint = Stint(
         stint_number=next_stint_number,
         driver_id=driver_id,
@@ -68,25 +61,81 @@ def start_stint(
 
     race.stints.append(stint)
 
+    # Salvataggio DB.
+    # Lo stint può essere aperto, quindi end_time/end_lap sono NULL.
+    if db is not None and race_id is not None:
+        db.create_stint(
+            race_id=race_id,
+            stint_number=stint.stint_number,
+            kart_id=stint.kart_id,
+            driver_id=stint.driver_id,
+            start_time_ms=stint.start_time_ms,
+            end_time_ms=stint.end_time_ms,
+            start_lap=stint.start_lap,
+            end_lap=stint.end_lap,
+        )
+
     return stint
 
 
 def register_pit_stop(
     race: Race,
     kart_id: int,
+    new_kart_id: int,
     lap_before: int,
     driver_in: int,
     duration_ms: int | None = None,
     refuel: bool = False,
     tire_change: bool = False,
+    db=None,
+    race_id: int | None = None,
 ) -> PitStop:
-    """
-    Registra un pit stop e gestisce automaticamente
-    la chiusura dello stint corrente e l'apertura
-    dello stint successivo.
-    """
+    # ---------------------------------------------------------
+    # Verifica kart attuale
+    # ---------------------------------------------------------
 
-    # Trova lo stint attualmente aperto del kart.
+    current_kart_exists = any(
+        kart.id == kart_id
+        for kart in race.karts
+    )
+
+    if not current_kart_exists:
+        raise ValueError(
+            f"Il Kart attuale {kart_id} non esiste nella gara."
+        )
+
+    # ---------------------------------------------------------
+    # Verifica nuovo kart
+    # ---------------------------------------------------------
+
+    new_kart_exists = any(
+        kart.id == new_kart_id
+        for kart in race.karts
+    )
+
+    if not new_kart_exists:
+        raise ValueError(
+            f"Il nuovo Kart {new_kart_id} non esiste nella gara."
+        )
+
+    # ---------------------------------------------------------
+    # Verifica pilota
+    # ---------------------------------------------------------
+
+    driver_exists = any(
+        driver.id == driver_in
+        for driver in race.drivers
+    )
+
+    if not driver_exists:
+        raise ValueError(
+            f"Il Pilota {driver_in} non esiste nella gara."
+        )
+
+    # ---------------------------------------------------------
+    # Trova lo stint aperto del kart attuale
+    # ---------------------------------------------------------
+
     open_stint = None
 
     for stint in race.stints:
@@ -102,38 +151,34 @@ def register_pit_stop(
             f"Il Kart {kart_id} non ha uno stint aperto."
         )
 
-    # Controlla che il pit avvenga dopo
-    # l'inizio dello stint.
+    # ---------------------------------------------------------
+    # Controllo giro pit
+    # ---------------------------------------------------------
+
     if (
         open_stint.start_lap is not None
         and lap_before < open_stint.start_lap
     ):
         raise ValueError(
-            "Il giro del pit è precedente all'inizio dello stint."
+            "Il giro del pit è precedente "
+            "all'inizio dello stint."
         )
 
-    # Controlla la durata del pit.
+    # ---------------------------------------------------------
+    # Controllo durata pit
+    # ---------------------------------------------------------
+
     if duration_ms is not None and duration_ms < 0:
         raise ValueError(
             "La durata del pit non può essere negativa."
         )
 
-    # Controlla che il nuovo pilota esista.
-    driver_exists = any(
-        driver.id == driver_in
-        for driver in race.drivers
-    )
+    # ---------------------------------------------------------
+    # Chiudi stint precedente
+    # ---------------------------------------------------------
 
-    if not driver_exists:
-        raise ValueError(
-            f"Il Pilota {driver_in} non esiste nella gara."
-        )
-
-    # Chiude lo stint corrente.
     open_stint.end_lap = lap_before
 
-    # Il termine dello stint coincide con il completamento
-    # dell'ultimo giro prima del pit.
     for lap in race.laps:
         if (
             lap.kart_id == kart_id
@@ -142,9 +187,13 @@ def register_pit_stop(
             open_stint.end_time_ms = lap.race_time_ms
             break
 
-    # Crea il pit stop.
+    # ---------------------------------------------------------
+    # Crea PitStop
+    # ---------------------------------------------------------
+
     pit_stop = PitStop(
-        kart_id=kart_id,
+        kart_out_id=kart_id,
+        kart_in_id=new_kart_id,
         lap_before=lap_before,
         driver_out=open_stint.driver_id,
         driver_in=driver_in,
@@ -155,12 +204,46 @@ def register_pit_stop(
 
     race.pit_stops.append(pit_stop)
 
-    # Apre automaticamente il nuovo stint.
+    # ---------------------------------------------------------
+    # Database: chiusura stint precedente
+    # ---------------------------------------------------------
+
+    if db is not None and race_id is not None:
+        db.update_stint_end(
+            race_id=race_id,
+            kart_id=kart_id,
+            stint_number=open_stint.stint_number,
+            end_time_ms=open_stint.end_time_ms,
+            end_lap=open_stint.end_lap,
+        )
+
+        # -----------------------------------------------------
+        # Database: salva pit stop
+        # -----------------------------------------------------
+
+        db.create_pit_stop(
+            race_id=race_id,
+            kart_out_id=pit_stop.kart_out_id,
+            kart_in_id=pit_stop.kart_in_id,
+            lap_before=pit_stop.lap_before,
+            driver_out=pit_stop.driver_out,
+            driver_in=pit_stop.driver_in,
+            duration_ms=pit_stop.duration_ms,
+            refuel=pit_stop.refuel,
+            tire_change=pit_stop.tire_change,
+        )
+
+    # ---------------------------------------------------------
+    # Apri nuovo stint
+    # ---------------------------------------------------------
+
     start_stint(
         race=race,
-        kart_id=kart_id,
+        kart_id=new_kart_id,
         driver_id=driver_in,
         start_lap=lap_before,
+        db=db,
+        race_id=race_id,
     )
 
     return pit_stop
@@ -172,17 +255,10 @@ def register_lap(
     lap_number: int,
     lap_time_ms: int,
     race_time_ms: int | None = None,
+    db=None,
+    race_id: int | None = None,
 ) -> Lap:
-    """
-    Registra un giro per un kart.
-
-    Il pilota viene determinato automaticamente
-    dallo stint attualmente aperto.
-    """
-
-    # ==============================
-    # CONTROLLO KART
-    # ==============================
+    """Registra un giro e, se presente, lo salva nel database."""
 
     kart_exists = any(
         kart.id == kart_id
@@ -194,27 +270,18 @@ def register_lap(
             f"Il Kart {kart_id} non esiste nella gara."
         )
 
-    # ==============================
-    # CONTROLLO TEMPO GIRO
-    # ==============================
-
     if lap_time_ms <= 0:
         raise ValueError(
             "Il tempo sul giro deve essere maggiore di zero."
         )
 
-    # ==============================
-    # CONTROLLO TEMPO GARA
-    # ==============================
-
-    if race_time_ms is not None and race_time_ms < 0:
+    if (
+        race_time_ms is not None
+        and race_time_ms < 0
+    ):
         raise ValueError(
             "Il tempo gara non può essere negativo."
         )
-
-    # ==============================
-    # CONTROLLO NUMERO GIRO
-    # ==============================
 
     existing_lap = any(
         lap.kart_id == kart_id
@@ -228,7 +295,6 @@ def register_lap(
             "è già stato registrato."
         )
 
-    # Trova l'ultimo giro del kart.
     kart_laps = [
         lap
         for lap in race.laps
@@ -244,12 +310,9 @@ def register_lap(
         if lap_number <= last_lap_number:
             raise ValueError(
                 f"Il giro {lap_number} non è valido: "
-                f"l'ultimo giro registrato è il {last_lap_number}."
+                f"l'ultimo giro registrato è "
+                f"il {last_lap_number}."
             )
-
-    # ==============================
-    # STINT APERTO
-    # ==============================
 
     open_stint = None
 
@@ -266,10 +329,6 @@ def register_lap(
             f"Il Kart {kart_id} non ha uno stint aperto."
         )
 
-    # ==============================
-    # CONTROLLO GIRO / STINT
-    # ==============================
-
     if (
         open_stint.start_lap is not None
         and lap_number <= open_stint.start_lap
@@ -278,10 +337,6 @@ def register_lap(
             f"Il giro {lap_number} non appartiene "
             f"allo stint {open_stint.stint_number}."
         )
-
-    # ==============================
-    # TROVA PILOTA
-    # ==============================
 
     driver_id = open_stint.driver_id
 
@@ -297,10 +352,6 @@ def register_lap(
             f"Pilota {driver_id} non trovato nella gara."
         )
 
-    # ==============================
-    # CREA GIRO
-    # ==============================
-
     lap = Lap(
         lap_number=lap_number,
         lap_time_ms=lap_time_ms,
@@ -310,22 +361,51 @@ def register_lap(
         kart_id=kart_id,
     )
 
-    # Se questo è il primo giro dello stint,
-    # possiamo determinare automaticamente l'inizio
-    # dello stint dal race time e dal lap time.
+    # Se è il primo giro dello stint, possiamo ricavare
+    # l'istante di partenza dello stint.
     if (
         open_stint.start_lap is not None
         and lap_number == open_stint.start_lap + 1
         and open_stint.start_time_ms == 0
         and race_time_ms is not None
     ):
-        open_stint.start_time_ms = race_time_ms - lap_time_ms
+        open_stint.start_time_ms = (
+            race_time_ms - lap_time_ms
+        )
 
-    # Salva il giro.
     race.laps.append(lap)
 
-    return lap
+    # Salvataggio DB.
+    if db is not None and race_id is not None:
+        db.create_lap(
+            race_id=race_id,
+            kart_id=lap.kart_id,
+            driver_id=lap.driver_id,
+            team_id=lap.team_id,
+            lap_number=lap.lap_number,
+            lap_time_ms=lap.lap_time_ms,
+            race_time_ms=lap.race_time_ms,
+        )
 
+        # Se questo è il primo giro di uno stint,
+        # aggiorniamo il suo start_time nel DB.
+        if (
+            open_stint.start_lap is not None
+            and lap_number == open_stint.start_lap + 1
+            and open_stint.start_time_ms == (
+                race_time_ms - lap_time_ms
+                if race_time_ms is not None
+                else 0
+            )
+        ):
+            db.update_stint_start(
+                race_id=race_id,
+                kart_id=kart_id,
+                stint_number=open_stint.stint_number,
+                start_time_ms=open_stint.start_time_ms,
+            )
+
+    return lap
 
 
 def finish_stint(
@@ -333,11 +413,18 @@ def finish_stint(
     kart_id: int,
     end_lap: int,
     end_time_ms: int | None = None,
+    db=None,
+    race_id: int | None = None,
 ) -> Stint:
+    """Chiude lo stint attualmente aperto."""
+
     open_stint = None
 
     for stint in race.stints:
-        if stint.kart_id == kart_id and stint.end_lap is None:
+        if (
+            stint.kart_id == kart_id
+            and stint.end_lap is None
+        ):
             open_stint = stint
             break
 
@@ -355,8 +442,6 @@ def finish_stint(
             "al giro iniziale dello stint."
         )
 
-    # Se non viene fornito manualmente, ricaviamo
-    # il tempo di fine dallo stesso giro registrato.
     if end_time_ms is None:
         for lap in race.laps:
             if (
@@ -365,7 +450,8 @@ def finish_stint(
             ):
                 if lap.race_time_ms is None:
                     raise ValueError(
-                        f"Il giro {end_lap} non ha un race_time_ms."
+                        f"Il giro {end_lap} non ha "
+                        "un race_time_ms."
                     )
 
                 end_time_ms = lap.race_time_ms
@@ -380,5 +466,13 @@ def finish_stint(
     open_stint.end_lap = end_lap
     open_stint.end_time_ms = end_time_ms
 
-    return open_stint
+    if db is not None and race_id is not None:
+        db.update_stint_end(
+            race_id=race_id,
+            kart_id=kart_id,
+            stint_number=open_stint.stint_number,
+            end_time_ms=open_stint.end_time_ms,
+            end_lap=open_stint.end_lap,
+        )
 
+    return open_stint
