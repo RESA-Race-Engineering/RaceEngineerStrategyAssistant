@@ -1,9 +1,10 @@
 from core.models import (
-    Race,
     RaceConfig,
-    Kart,
+    Race,
     Team,
+    Kart,
     Driver,
+    RaceEvent,
 )
 from core.race_logic import (
     start_stint,
@@ -12,520 +13,603 @@ from core.race_logic import (
     finish_stint,
 )
 from core.analytics import (
-    analyze_laps,
-    analyze_driver_laps,
     AnalysisWindow,
     AnalysisWindowType,
-    get_laps_for_window,
+    analyze_laps,
+    analyze_driver_laps,
+    get_last_laps,
 )
 from core.rules import validate_race
 from core.time_utils import format_time
 from database.db import RaceDatabase
+from datetime import datetime
 
 
-def main():
-    print("=" * 60)
-    print("RACE ENGINEER V1 - TEST COMPLETO")
-    print("=" * 60)
+print("=" * 60)
+print("RACE ENGINEER V1 - TEST COMPLETO")
+print("=" * 60)
 
-    # ---------------------------------------------------------
-    # 1. CONFIGURAZIONE GARA
-    # ---------------------------------------------------------
 
-    config = RaceConfig()
+# ============================================================
+# CONFIGURAZIONE
+# ============================================================
 
-    print()
-    print("CONFIGURAZIONE")
-    print(f"Durata gara: {format_time(config.duration_ms)}")
-    print(f"Piloti per team: {config.drivers_per_team}")
-    print(f"Stint minimi: {config.min_stints}")
-    print(f"Durata massima stint: {format_time(config.max_stint_ms)}")
-    print(f"Pit stop minimi: {config.min_pit_stops}")
-    print(f"Durata minima pit: {format_time(config.min_pit_ms)}")
+config = RaceConfig()
 
-    # ---------------------------------------------------------
-    # 2. CREAZIONE GARA IN MEMORY
-    # ---------------------------------------------------------
+print()
+print("CONFIGURAZIONE")
+print(f"Durata gara: {format_time(config.duration_ms)}")
+print(f"Piloti per team: {config.drivers_per_team}")
+print(f"Stint minimi: {config.min_stints}")
+print(
+    f"Durata massima stint: "
+    f"{format_time(config.max_stint_ms)}"
+)
+print(f"Pit stop minimi: {config.min_pit_stops}")
+print(
+    f"Durata minima pit: "
+    f"{format_time(config.min_pit_ms)}"
+)
 
-    race = Race(config=config)
 
-    kart = Kart(
+# ============================================================
+# DATABASE
+# ============================================================
+
+db = RaceDatabase("data/race_engineer.db")
+
+
+# ============================================================
+# GARA
+# ============================================================
+
+race = Race(config=config)
+
+team = Team(
+    id=1,
+    name="Our Team",
+)
+
+kart = Kart(
     id=1,
     number=18,
-    )
+)
 
-    kart_2 = Kart(
-        id=2,
-        number=7,
-    )
+kart_2 = Kart(
+    id=2,
+    number=7,
+)
 
-    team = Team(
-        id=1,
-        name="Our Team",
-        kart_id=kart.id,
-    )
+driver_1 = Driver(
+    id=1,
+    name="Marco",
+    team_id=1,
+)
 
-    driver_1 = Driver(
-        id=1,
-        name="Marco",
-        team_id=team.id,
-    )
+driver_2 = Driver(
+    id=2,
+    name="Luca",
+    team_id=1,
+)
 
-    driver_2 = Driver(
-        id=2,
-        name="Luca",
-        team_id=team.id,
-    )
+race.teams.append(team)
+race.karts.append(kart)
+race.karts.append(kart_2)
+race.drivers.append(driver_1)
+race.drivers.append(driver_2)
 
-    race.karts.append(kart)
-    race.karts.append(kart_2)
-    race.teams.append(team)
-    race.drivers.append(driver_1)
-    race.drivers.append(driver_2)
+print()
+print("GARA CREATA")
+print(f"Team: {team.name}")
+print(f"Kart: {kart.number}")
+print(f"Kart 2: {kart_2.number}")
+print(f"Pilota 1: {driver_1.name}")
+print(f"Pilota 2: {driver_2.name}")
 
-    print()
-    print("GARA CREATA")
-    print(f"Team: {team.name}")
-    print(f"Kart: {kart.number}")
-    print(f"Pilota 1: {driver_1.name}")
-    print(f"Pilota 2: {driver_2.name}")
 
-    # ---------------------------------------------------------
-    # 3. DATABASE
-    # ---------------------------------------------------------
+# ============================================================
+# SALVATAGGIO DATABASE
+# ============================================================
 
-    db = RaceDatabase()
-    db.create_tables()
 
-    race_id = db.create_race(
-        name="Integration Test",
-        duration_ms=config.duration_ms,
-        created_at="2026-09-18 18:30:00",
-    )
+race_id = db.create_race(
+    name="Test Race",
+    duration_ms=config.duration_ms,
+    created_at=datetime.now().isoformat(),
+)
 
-    db_team_id = db.create_team(
-        race_id=race_id,
-        name=team.name,
-    )
+team_db_id = db.create_team(
+    race_id=race_id,
+    name=team.name,
+)
 
-    db_kart_id = db.create_kart(
-        race_id=race_id,
-        number=kart.number,
-    )
+kart_db_id = db.create_kart(
+    race_id=race_id,
+    number=kart.number,
+)
 
-    db_driver_1_id = db.create_driver(
-        race_id=race_id,
-        team_id=db_team_id,
-        name=driver_1.name,
-    )
+kart_2_db_id = db.create_kart(
+    race_id=race_id,
+    number=kart_2.number,
+)
 
-    db_driver_2_id = db.create_driver(
-        race_id=race_id,
-        team_id=db_team_id,
-        name=driver_2.name,
-    )
+driver_1_db_id = db.create_driver(
+    race_id=race_id,
+    team_id=team_db_id,
+    name=driver_1.name,
+)
 
-    print()
-    print("DATABASE")
-    print(f"Race ID: {race_id}")
-    print(f"Team ID: {db_team_id}")
-    print(f"Kart ID: {db_kart_id}")
-    print(f"Driver 1 ID: {db_driver_1_id}")
-    print(f"Driver 2 ID: {db_driver_2_id}")
+driver_2_db_id = db.create_driver(
+    race_id=race_id,
+    team_id=team_db_id,
+    name=driver_2.name,
+)
 
-    # ---------------------------------------------------------
-    # 4. STINT 1
-    # ---------------------------------------------------------
 
-    print()
-    print("STINT 1")
+# Usiamo gli ID reali del database anche nei modelli in memoria.
+team.id = team_db_id
+kart.id = kart_db_id
+kart_2.id = kart_2_db_id
+driver_1.id = driver_1_db_id
+driver_2.id = driver_2_db_id
 
-    stint_1 = start_stint(
-        race=race,
-        kart_id=kart.id,
-        driver_id=driver_1.id,
-        start_lap=0,
-        start_time_ms=0,
-        db=db,
-        race_id=race_id,
-    )
+print()
+print("DATABASE")
+print(f"Race ID: {race_id}")
+print(f"Team ID: {team.id}")
+print(f"Kart 1 ID: {kart.id}")
+print(f"Kart 2 ID: {kart_2.id}")
+print(f"Driver 1 ID: {driver_1.id}")
+print(f"Driver 2 ID: {driver_2.id}")
 
-    print(
-        f"Stint {stint_1.stint_number} | "
-        f"Driver {stint_1.driver_id} | "
-        f"Start lap {stint_1.start_lap}"
-    )
 
-    # ---------------------------------------------------------
-    # 5. REGISTRAZIONE GIRI
-    # ---------------------------------------------------------
+# ============================================================
+# STINT 1
+# ============================================================
 
-    laps_data = [
-        (41, 53200, 2173200),
-        (42, 53100, 2226300),
-        (43, 53400, 2279700),
-    ]
+print()
+print("STINT 1")
 
-    for lap_number, lap_time_ms, race_time_ms in laps_data:
-        lap = register_lap(
-            race=race,
-            kart_id=kart.id,
-            lap_number=lap_number,
-            lap_time_ms=lap_time_ms,
-            race_time_ms=race_time_ms,
-            db=db,
-            race_id=race_id,
-        )
+stint_1 = start_stint(
+    race=race,
+    kart_id=kart.id,
+    driver_id=driver_1.id,
+    start_lap=0,
+    db=db,
+    race_id=race_id,
+)
 
-        print(
-            f"Giro {lap.lap_number} | "
-            f"Driver {lap.driver_id} | "
-            f"Tempo {lap.lap_time_ms} ms"
-        )
+print(
+    f"Stint {stint_1.stint_number} | "
+    f"Driver {stint_1.driver_id} | "
+    f"Start lap {stint_1.start_lap}"
+)
 
-    # ---------------------------------------------------------
-    # 6. PIT STOP + CAMBIO PILOTA
-    # ---------------------------------------------------------
 
-    print()
-    print("PIT STOP")
+# ============================================================
+# GIRI KART 1
+# ============================================================
 
-    pit = register_pit_stop(
-        race=race,
-        kart_id=kart.id,
-        new_kart_id=kart_2.id,
-        lap_before=43,
-        driver_in=driver_2.id,
-        duration_ms=90000,
-        refuel=True,
-        tire_change=False,
-        db=db,
-        race_id=race_id,
-    )
+lap_41 = register_lap(
+    race=race,
+    kart_id=kart.id,
+    lap_number=41,
+    lap_time_ms=53200,
+    race_time_ms=2200000,
+    db=db,
+    race_id=race_id,
+)
 
-    print(
-        f"Pit dopo giro {pit.lap_before} | "
-        f"Driver out {pit.driver_out} | "
-        f"Driver in {pit.driver_in} | "
-        f"Durata {pit.duration_ms} ms"
-    )
+print(
+    f"Giro {lap_41.lap_number} | "
+    f"Driver {lap_41.driver_id} | "
+    f"Tempo {lap_41.lap_time_ms} ms"
+)
 
-    # ---------------------------------------------------------
-    # 7. GIRO DEL NUOVO PILOTA
-    # ---------------------------------------------------------
+lap_42 = register_lap(
+    race=race,
+    kart_id=kart.id,
+    lap_number=42,
+    lap_time_ms=53100,
+    race_time_ms=2253200,
+    db=db,
+    race_id=race_id,
+)
 
-    lap = register_lap(
-        race=race,
-        kart_id=kart_2.id,
-        lap_number=44,
-        lap_time_ms=53000,
-        race_time_ms=2369700,
-        db=db,
-        race_id=race_id,
-    )
+print(
+    f"Giro {lap_42.lap_number} | "
+    f"Driver {lap_42.driver_id} | "
+    f"Tempo {lap_42.lap_time_ms} ms"
+)
 
+lap_43 = register_lap(
+    race=race,
+    kart_id=kart.id,
+    lap_number=43,
+    lap_time_ms=53400,
+    race_time_ms=2306500,
+    db=db,
+    race_id=race_id,
+)
+
+print(
+    f"Giro {lap_43.lap_number} | "
+    f"Driver {lap_43.driver_id} | "
+    f"Tempo {lap_43.lap_time_ms} ms"
+)
+
+
+# ============================================================
+# PIT STOP + CAMBIO KART
+# ============================================================
+
+print()
+print("PIT STOP")
+
+pit = register_pit_stop(
+    race=race,
+    kart_id=kart.id,
+    new_kart_id=kart_2.id,
+    lap_before=43,
+    driver_in=driver_2.id,
+    duration_ms=90000,
+    refuel=True,
+    tire_change=False,
+    db=db,
+    race_id=race_id,
+)
+
+print(
+    f"Pit dopo giro {pit.lap_before} | "
+    f"Kart {pit.kart_out_id} -> {pit.kart_in_id} | "
+    f"Driver {pit.driver_out} -> {pit.driver_in} | "
+    f"Durata {pit.duration_ms} ms"
+)
+
+
+# ============================================================
+# GIRI KART 2
+# ============================================================
+
+lap_44 = register_lap(
+    race=race,
+    kart_id=kart_2.id,
+    lap_number=44,
+    lap_time_ms=53000,
+    race_time_ms=2440000,
+    db=db,
+    race_id=race_id,
+)
+
+print(
+    f"Giro {lap_44.lap_number} | "
+    f"Driver {lap_44.driver_id} | "
+    f"Tempo {lap_44.lap_time_ms} ms"
+)
+
+lap_45 = register_lap(
+    race=race,
+    kart_id=kart_2.id,
+    lap_number=45,
+    lap_time_ms=52900,
+    race_time_ms=2492900,
+    db=db,
+    race_id=race_id,
+)
+
+print(
+    f"Giro {lap_45.lap_number} | "
+    f"Driver {lap_45.driver_id} | "
+    f"Tempo {lap_45.lap_time_ms} ms"
+)
+
+
+# ============================================================
+# CHIUSURA STINT 2
+# ============================================================
+
+stint_2 = finish_stint(
+    race=race,
+    kart_id=kart_2.id,
+    end_lap=45,
+    db=db,
+    race_id=race_id,
+)
+
+print()
+print("STINT 2 CHIUSO")
+
+print(
+    f"Stint {stint_2.stint_number} | "
+    f"Driver {stint_2.driver_id} | "
+    f"Start lap {stint_2.start_lap} | "
+    f"End lap {stint_2.end_lap} | "
+    f"Durata {stint_2.duration_ms} ms"
+)
+
+
+# ============================================================
+# DATI RACE IN MEMORY
+# ============================================================
+
+print()
+print("=" * 60)
+print("DATI RACE IN MEMORY")
+print("=" * 60)
+
+print()
+print("GIRI")
+
+for lap in race.laps:
     print(
         f"Giro {lap.lap_number} | "
         f"Driver {lap.driver_id} | "
-        f"Tempo {lap.lap_time_ms} ms"
+        f"Kart {lap.kart_id} | "
+        f"{lap.lap_time_ms} ms"
     )
 
-    # ---------------------------------------------------------
-    # 8. ALTRO GIRO
-    # ---------------------------------------------------------
 
-    lap = register_lap(
-        race=race,
-        kart_id=kart_2.id,
-        lap_number=45,
-        lap_time_ms=52900,
-        race_time_ms=2422600,
-        db=db,
-        race_id=race_id,
+print()
+print("STINT")
+
+for stint in race.stints:
+    print(
+        f"Stint {stint.stint_number} | "
+        f"Driver {stint.driver_id} | "
+        f"Kart {stint.kart_id} | "
+        f"Start lap {stint.start_lap} | "
+        f"End lap {stint.end_lap} | "
+        f"Durata {stint.duration_ms} ms"
     )
 
+
+print()
+print("PIT STOP")
+
+for pit_stop in race.pit_stops:
+    print(
+        f"Pit dopo giro {pit_stop.lap_before} | "
+        f"Kart {pit_stop.kart_out_id} -> "
+        f"{pit_stop.kart_in_id} | "
+        f"Driver {pit_stop.driver_out} -> "
+        f"{pit_stop.driver_in} | "
+        f"Durata {pit_stop.duration_ms} ms"
+    )
+
+
+# ============================================================
+# ANALYTICS
+# ============================================================
+
+print()
+print("=" * 60)
+print("ANALYTICS")
+print("=" * 60)
+
+print()
+print("ANALISI GENERALE")
+
+analysis = analyze_laps(race.laps)
+
+print(f"Giri analizzati: {analysis.lap_count}")
+
+if analysis.best_lap_ms is not None:
+    print(
+        f"Best lap: "
+        f"{format_time(analysis.best_lap_ms)}"
+    )
+
+if analysis.average_lap_ms is not None:
+    print(
+        f"Media: "
+        f"{format_time(round(analysis.average_lap_ms))}"
+    )
+
+if analysis.consistency_ms is not None:
+    print(
+        f"Consistenza: "
+        f"{analysis.consistency_ms:.1f} ms"
+    )
+
+
+# ============================================================
+# ANALISI PILOTI
+# ============================================================
+
+print()
+print("ANALISI PILOTI")
+
+driver_1_analysis = analyze_driver_laps(
+    laps=race.laps,
+    driver_id=driver_1.id,
+)
+
+driver_2_analysis = analyze_driver_laps(
+    laps=race.laps,
+    driver_id=driver_2.id,
+)
+
+print(f"{driver_1.name}: {driver_1_analysis.lap_count} giri")
+
+if driver_1_analysis.average_lap_ms is not None:
+    print(
+        f"  Media: "
+        f"{format_time(round(driver_1_analysis.average_lap_ms))}"
+    )
+
+print(f"{driver_2.name}: {driver_2_analysis.lap_count} giri")
+
+if driver_2_analysis.average_lap_ms is not None:
+    print(
+        f"  Media: "
+        f"{format_time(round(driver_2_analysis.average_lap_ms))}"
+    )
+
+
+# ============================================================
+# ULTIMI 3 GIRI
+# ============================================================
+
+print()
+print("ULTIMI 3 GIRI")
+
+last_laps = get_last_laps(
+    laps=race.laps,
+    count=3,
+)
+
+for lap in last_laps:
     print(
         f"Giro {lap.lap_number} | "
-        f"Driver {lap.driver_id} | "
-        f"Tempo {lap.lap_time_ms} ms"
+        f"{lap.lap_time_ms} ms"
     )
 
-    # ---------------------------------------------------------
-    # 9. CHIUSURA STINT 2
-    # ---------------------------------------------------------
 
-    stint_2 = finish_stint(
-        race=race,
-        kart_id=kart_2.id,
-        end_lap=45,
-        db=db,
-        race_id=race_id,
-    )
+# ============================================================
+# CONTROLLO REGOLE
+# ============================================================
 
-    print()
-    print("STINT 2 CHIUSO")
+print()
+print("=" * 60)
+print("CONTROLLO REGOLE")
+print("=" * 60)
 
+results = validate_race(race)
+
+for result in results:
     print(
-        f"Stint {stint_2.stint_number} | "
-        f"Driver {stint_2.driver_id} | "
-        f"Start lap {stint_2.start_lap} | "
-        f"End lap {stint_2.end_lap} | "
-        f"Durata {stint_2.duration_ms} ms"
+        f"{result.status.name} | "
+        f"{result.rule_name} | "
+        f"{result.message}"
     )
 
-    # ---------------------------------------------------------
-    # 10. DATI IN MEMORY
-    # ---------------------------------------------------------
 
-    print()
-    print("=" * 60)
-    print("DATI RACE IN MEMORY")
-    print("=" * 60)
+# ============================================================
+# EVENTO / PENALITÀ
+# ============================================================
 
-    print()
-    print("GIRI")
+print()
+print("EVENTO / PENALITÀ")
 
-    for lap in race.laps:
-        print(
-            f"Giro {lap.lap_number} | "
-            f"Driver {lap.driver_id} | "
-            f"Kart {lap.kart_id} | "
-            f"{lap.lap_time_ms} ms"
-        )
+event = RaceEvent(
+    time_ms=2500000,
+    description="Track limits",
+    penalty_ms=5000,
+)
 
-    print()
-    print("STINT")
+event_id = db.create_event(
+    race_id=race_id,
+    time_ms=event.time_ms,
+    description=event.description,
+    penalty_ms=event.penalty_ms,
+)
 
-    for stint in race.stints:
-        print(
-            f"Stint {stint.stint_number} | "
-            f"Driver {stint.driver_id} | "
-            f"Start lap {stint.start_lap} | "
-            f"End lap {stint.end_lap} | "
-            f"Durata {stint.duration_ms} ms"
-        )
+race.events.append(event)
 
-    print()
-    print("PIT STOP")
+print(
+    f"Evento salvato con ID: {event_id}"
+)
 
-    for pit_stop in race.pit_stops:
-        print(
-            f"Pit dopo giro {pit_stop.lap_before} | "
-            f"Kart {pit_stop.kart_out_id} -> {pit_stop.kart_in_id} | "
-            f"Driver {pit_stop.driver_out} -> {pit_stop.driver_in} | "
-            f"Durata {pit_stop.duration_ms} ms"
-        )
+print(
+    f"Tempo {event.time_ms} ms | "
+    f"{event.description} | "
+    f"Penalità {event.penalty_ms} ms"
+)
 
-    # ---------------------------------------------------------
-    # 11. ANALYTICS
-    # ---------------------------------------------------------
 
-    print()
-    print("=" * 60)
-    print("ANALYTICS")
-    print("=" * 60)
+# ============================================================
+# DATI LETTI DAL DATABASE
+# ============================================================
 
-    analysis = analyze_laps(race.laps)
+print()
+print("=" * 60)
+print("DATI LETTI DAL DATABASE")
+print("=" * 60)
 
-    print()
-    print("ANALISI GENERALE")
 
-    print(f"Giri analizzati: {analysis.lap_count}")
+# ------------------------------------------------------------
+# GIRI
+# ------------------------------------------------------------
 
-    if analysis.best_lap_ms is not None:
-        print(
-            f"Best lap: "
-            f"{format_time(analysis.best_lap_ms)}"
-        )
+print()
+print("GIRI DAL DATABASE")
 
-    if analysis.average_lap_ms is not None:
-        print(
-            f"Media: "
-            f"{format_time(round(analysis.average_lap_ms))}"
-        )
+db_laps = db.get_laps(race_id)
 
-    if analysis.consistency_ms is not None:
-        print(
-            f"Consistenza: "
-            f"{analysis.consistency_ms:.1f} ms"
-        )
-
-    # ---------------------------------------------------------
-    # 12. ANALISI PILOTA
-    # ---------------------------------------------------------
-
-    print()
-    print("ANALISI PILOTI")
-
-    driver_1_analysis = analyze_driver_laps(
-        race.laps,
-        driver_1.id,
-    )
-
-    driver_2_analysis = analyze_driver_laps(
-        race.laps,
-        driver_2.id,
-    )
-
+for row in db_laps:
     print(
-        f"{driver_1.name}: "
-        f"{driver_1_analysis.lap_count} giri"
+        f"Giro {row['lap_number']} | "
+        f"Driver {row['driver_id']} | "
+        f"Kart {row['kart_id']} | "
+        f"{row['lap_time_ms']} ms"
     )
 
-    if driver_1_analysis.average_lap_ms is not None:
-        print(
-            f"  Media: "
-            f"{format_time(round(driver_1_analysis.average_lap_ms))}"
-        )
 
+# ------------------------------------------------------------
+# STINT
+# ------------------------------------------------------------
+
+print()
+print("STINT DAL DATABASE")
+
+db_stints = db.get_stints(race_id)
+
+for row in db_stints:
     print(
-        f"{driver_2.name}: "
-        f"{driver_2_analysis.lap_count} giri"
+        f"Stint {row['stint_number']} | "
+        f"Driver {row['driver_id']} | "
+        f"Kart {row['kart_id']} | "
+        f"Start lap {row['start_lap']} | "
+        f"End lap {row['end_lap']} | "
+        f"Start {row['start_time_ms']} ms | "
+        f"End {row['end_time_ms']} ms"
     )
 
-    if driver_2_analysis.average_lap_ms is not None:
-        print(
-            f"  Media: "
-            f"{format_time(round(driver_2_analysis.average_lap_ms))}"
-        )
 
-    # ---------------------------------------------------------
-    # 13. FINESTRA ULTIMI GIRI
-    # ---------------------------------------------------------
+# ------------------------------------------------------------
+# PIT STOP
+# ------------------------------------------------------------
 
-    print()
-    print("ULTIMI 3 GIRI")
+print()
+print("PIT STOP DAL DATABASE")
 
-    window = AnalysisWindow(
-        window_type=AnalysisWindowType.LAST_LAPS,
-        value=3,
+db_pits = db.get_pit_stops(race_id)
+
+for row in db_pits:
+    print(
+        f"Pit dopo giro {row['lap_before']} | "
+        f"Kart {row['kart_out_id']} -> "
+        f"{row['kart_in_id']} | "
+        f"Driver {row['driver_out']} -> "
+        f"{row['driver_in']} | "
+        f"Durata {row['duration_ms']} ms"
     )
 
-    last_laps = get_laps_for_window(
-        laps=race.laps,
-        stints=race.stints,
-        window=window,
-        kart_id=kart.id,
+
+# ------------------------------------------------------------
+# EVENTI
+# ------------------------------------------------------------
+
+print()
+print("EVENTI DAL DATABASE")
+
+db_events = db.get_events(race_id)
+
+for row in db_events:
+    print(
+        f"Tempo {row['time_ms']} ms | "
+        f"{row['description']} | "
+        f"Penalità {row['penalty_ms']} ms"
     )
 
-    for lap in last_laps:
-        print(
-            f"Giro {lap.lap_number} | "
-            f"{lap.lap_time_ms} ms"
-        )
 
-    # ---------------------------------------------------------
-    # 14. CONTROLLO REGOLE
-    # ---------------------------------------------------------
+# ============================================================
+# CHIUSURA
+# ============================================================
 
-    print()
-    print("=" * 60)
-    print("CONTROLLO REGOLE")
-    print("=" * 60)
+db.close()
 
-    rule_results = validate_race(race)
-
-    for result in rule_results:
-        print(
-            f"{result.status.value.upper()} | "
-            f"{result.rule_name} | "
-            f"{result.message}"
-        )
-
-    # ---------------------------------------------------------
-    # 15. LETTURA DATABASE
-    # ---------------------------------------------------------
-
-    print()
-    print("=" * 60)
-    print("DATI LETTI DAL DATABASE")
-    print("=" * 60)
-
-    print()
-    print("GIRI DAL DATABASE")
-
-    db_laps = db.get_laps(
-        race_id=race_id,
-        kart_id=db_kart_id,
-    )
-
-    for lap in db_laps:
-        print(
-            f"Giro {lap['lap_number']} | "
-            f"Driver {lap['driver_id']} | "
-            f"{lap['lap_time_ms']} ms"
-        )
-
-    print()
-    print("STINT DAL DATABASE")
-
-    db_stints = db.get_stints(
-        race_id=race_id,
-        kart_id=db_kart_id,
-    )
-
-    for stint in db_stints:
-        print(
-            f"Stint {stint['stint_number']} | "
-            f"Driver {stint['driver_id']} | "
-            f"Start lap {stint['start_lap']} | "
-            f"End lap {stint['end_lap']} | "
-            f"Start {stint['start_time_ms']} ms | "
-            f"End {stint['end_time_ms']} ms"
-        )
-
-    print()
-    print("PIT STOP DAL DATABASE")
-
-    db_pits = db.get_pit_stops(
-        race_id=race_id,
-        kart_id=db_kart_id,
-    )
-
-    for pit in db_pits:
-        print(
-            f"Pit dopo giro {pit['lap_before']} | "
-            f"Driver out {pit['driver_out']} | "
-            f"Driver in {pit['driver_in']} | "
-            f"Durata {pit['duration_ms']} ms"
-        )
-
-    # ---------------------------------------------------------
-    # 16. EVENTO / PENALITÀ
-    # ---------------------------------------------------------
-
-    print()
-    print("EVENTO / PENALITÀ")
-
-    event_id = db.create_event(
-        race_id=race_id,
-        time_ms=2500000,
-        description="Track limits",
-        penalty_ms=5000,
-    )
-
-    print(f"Evento salvato con ID: {event_id}")
-
-    db_events = db.get_events(race_id)
-
-    for event in db_events:
-        print(
-            f"Tempo {event['time_ms']} ms | "
-            f"{event['description']} | "
-            f"Penalità {event['penalty_ms']} ms"
-        )
-
-    # ---------------------------------------------------------
-    # 17. CHIUSURA
-    # ---------------------------------------------------------
-
-    db.close()
-
-    print()
-    print("=" * 60)
-    print("TEST COMPLETATO")
-    print("=" * 60)
-
-
-if __name__ == "__main__":
-    main()
+print()
+print("=" * 60)
+print("TEST COMPLETATO")
+print("=" * 60)

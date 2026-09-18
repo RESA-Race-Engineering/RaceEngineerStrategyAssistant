@@ -41,13 +41,7 @@ def start_stint(
                 f"Il Kart {kart_id} ha già uno stint aperto."
             )
 
-    kart_stints = [
-        stint
-        for stint in race.stints
-        if stint.kart_id == kart_id
-    ]
-
-    next_stint_number = len(kart_stints) + 1
+    next_stint_number = len(race.stints) + 1
 
     stint = Stint(
         stint_number=next_stint_number,
