@@ -630,6 +630,22 @@ def main():
             "non è stata applicata"
         )
 
+    print()
+    print("=" * 40)
+    print("TEST REGOLE")
+    print("=" * 40)
+
+    from core.rules import validate_race
+
+    rule_results = validate_race(race)
+
+    for result in rule_results:
+        print(
+            f"{result.status.value.upper()} | "
+            f"{result.rule_name} | "
+            f"{result.message}"
+        )
+
 
 if __name__ == "__main__":
     main()
