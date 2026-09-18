@@ -102,11 +102,14 @@ class Competitor:
     gap: str = ""
     gap_ms: Optional[int] = None
 
-    # Distacco dal kart che precede, ricavato per differenza dei
-    # distacchi dal primo. None se uno dei due è doppiato.
-    # Da verificare sul registro che la colonna "gap" sia davvero
-    # il distacco dal primo e non già l'intervallo.
+    # Distacco dal kart che precede: dalla colonna "int" quando il
+    # circuito la pubblica, altrimenti ricavato dai passaggi sul
+    # traguardo. Su circuito-di-pomposa "gap" (Distacco) è il
+    # distacco dal primo e "int" (Interv.) quello da chi precede.
     interval_ms: Optional[int] = None
+
+    # Intervallo così come lo pubblica il feed, se c'è la colonna.
+    feed_interval_ms: Optional[int] = None
 
     # Giri senza pilota, squadra e Kart.id: bastano a core.analytics.
     laps: list[CompetitorLap] = field(default_factory=list)
@@ -300,15 +303,19 @@ class Standings:
             competitor.gap = self._cell(row_id, "gap")
             competitor.gap_ms = parse_gap_ms(competitor.gap)
 
+            competitor.feed_interval_ms = parse_gap_ms(
+                self._cell(row_id, "int")
+            )
+
     def _compute_intervals(self) -> None:
         """
         Ricava il distacco da chi precede.
 
-        Con la storia dei giri si confrontano i passaggi sul traguardo:
-        l'ultimo giro di una squadra contro lo stesso giro di chi la
-        precede. Vale anche fra doppiati, per i quali il feed scrive
-        "1 Giro" invece di un tempo. Senza storia si ripiega sulla
-        differenza dei distacchi dal primo.
+        Prima la colonna "int" del feed, se il circuito la pubblica.
+        Poi i passaggi sul traguardo: l'ultimo giro di una squadra
+        contro lo stesso giro di chi la precede, che vale anche fra
+        doppiati, per i quali il feed scrive "1 Giro" invece di un
+        tempo. Infine la differenza dei distacchi dal primo.
         """
 
         ordered = self.competitors()
@@ -321,7 +328,10 @@ class Standings:
 
             ahead = ordered[index - 1]
 
-            interval_ms = _crossing_interval(competitor, ahead)
+            interval_ms = competitor.feed_interval_ms
+
+            if interval_ms is None:
+                interval_ms = _crossing_interval(competitor, ahead)
 
             if interval_ms is None:
                 # Il primo di solito non ha distacco scritto.

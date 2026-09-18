@@ -65,6 +65,12 @@ from livetiming.standings import Standings
 # Avvisi conservati per la GUI.
 MAX_ALERTS = 200
 
+# Scarto massimo fra il tempo sul giro dichiarato dal feed e il tempo
+# trascorso fra due passaggi consecutivi. Oltre, il feed aggiorna
+# "Ultimo T." in un momento diverso da quello che supponiamo e ogni
+# giro rischia di ricevere il tempo del giro prima.
+LAP_TIME_CHECK_MS = 3000
+
 
 @dataclass
 class Alert:
@@ -156,6 +162,9 @@ class RaceSession:
 
         # Pit confermato prima che il kart uscisse dai box.
         self._awaiting_pit_out = False
+
+        # Ultimo giro dal feed: (numero, istante di ricezione).
+        self._last_feed_lap: Optional[tuple[int, int]] = None
 
     # ==============================
     # CREAZIONE
@@ -477,6 +486,11 @@ class RaceSession:
             race_time_ms=event.race_time_ms,
         )
 
+        self._check_lap_time(
+            lap,
+            received_at_ms=event.received_at_ms,
+        )
+
         if self.current_stint() is None:
             if not self.pending_laps:
                 self._alert(
@@ -493,6 +507,39 @@ class RaceSession:
             return
 
         self._register(lap)
+
+    def _check_lap_time(
+        self,
+        lap: PendingLap,
+        received_at_ms: int,
+    ) -> None:
+        """
+        Confronta il tempo sul giro con il tempo fra due passaggi.
+
+        È la verifica dal vivo della semantica ancora da confermare:
+        se il feed aggiornasse "Ultimo T." dopo il passaggio, ogni
+        giro riceverebbe il tempo del giro prima. Uno scarto isolato
+        può venire da un ritardo di rete; uno ripetuto no.
+        """
+
+        previous = self._last_feed_lap
+        self._last_feed_lap = (lap.lap_number, received_at_ms)
+
+        if previous is None or lap.lap_number != previous[0] + 1:
+            return
+
+        elapsed_ms = received_at_ms - previous[1]
+
+        if abs(elapsed_ms - lap.lap_time_ms) <= LAP_TIME_CHECK_MS:
+            return
+
+        self._alert(
+            "warning",
+            f"Giro {lap.lap_number}: il feed dice "
+            f"{format_time(lap.lap_time_ms)}, ma fra i due passaggi "
+            f"sono passati {format_time(elapsed_ms)}. Se si ripete, "
+            f"i tempi dei giri sono sfasati: segnalarlo.",
+        )
 
     def _on_pit_in(self, event: PitIn) -> None:
         """Ingresso ai box: si aspetta la conferma dell'operatore."""

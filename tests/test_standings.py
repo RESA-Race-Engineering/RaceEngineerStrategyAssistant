@@ -175,6 +175,30 @@ class TestClassifica(unittest.TestCase):
         self.assertEqual([lap.lap_number for lap in laps], [1])
 
 
+class TestColonnaIntervallo(unittest.TestCase):
+    """Su circuito-di-pomposa il feed pubblica anche l'intervallo."""
+
+    def test_intervallo_dal_feed(self):
+        header = HEADER.replace(
+            '<td data-id="c8" data-type="pit">Pit</td>',
+            '<td data-id="c8" data-type="int">Interv.</td>',
+        )
+
+        standings = Standings()
+        standings.process(
+            "init|r|\ngrid||<tbody>"
+            + header
+            + riga("r1", 1, 18, "Scuderia Dante", "53.200", "", 40)
+            + riga("r2", 2, 7, "Kart Rossi", "53.900", "+4.500", 40)
+            + "</tbody>"
+        )
+
+        # riga() scrive "0" nella colonna ex pit: è l'intervallo.
+        standings.process("r2c8||+1.250")
+
+        self.assertEqual(standings.get("r2").interval_ms, 1_250)
+
+
 class TestDistacchi(unittest.TestCase):
 
     def test_formati(self):

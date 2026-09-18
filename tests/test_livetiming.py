@@ -13,7 +13,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from livetiming.clock import ClockDirection, RaceClock
+from livetiming.clock import (
+    ClockDirection,
+    RaceClock,
+    parse_clock_value,
+)
 from livetiming.journal import FeedJournal, replay
 from livetiming.protocol import (
     Crossing,
@@ -262,6 +266,35 @@ class TestCronometro(unittest.TestCase):
 
     def test_nessuna_lettura(self):
         self.assertIsNone(RaceClock().race_time_ms(1_000_000))
+
+    def test_formato_reale_count(self):
+        """
+        Formato osservato su circuito-di-pomposa: millisecondi grezzi
+        ogni 30 secondi, classe "count" per il conto in avanti.
+        """
+
+        clock = RaceClock()
+        clock.update("count", "18203766", 1_000_000)
+
+        # Scorre subito, senza aspettare la seconda lettura.
+        self.assertEqual(clock.direction, ClockDirection.COUNTING_UP)
+        self.assertEqual(clock.race_time_ms(1_010_000), 18_213_766)
+
+        clock.update("count", "18233893", 1_030_093)
+
+        self.assertEqual(clock.race_time_ms(1_030_093), 18_233_893)
+
+    def test_formato_reale_countdown(self):
+        clock = RaceClock(total_duration_ms=6 * 60 * 60 * 1000)
+        clock.update("countdown", "21540000", 1_000_000)
+
+        self.assertEqual(clock.direction, ClockDirection.COUNTING_DOWN)
+        self.assertEqual(clock.race_time_ms(1_005_000), 65_000)
+
+    def test_valori_in_secondi_e_con_testo(self):
+        self.assertEqual(parse_clock_value("count", "65.5"), 65_500)
+        self.assertEqual(parse_clock_value("countdown_text", "60000_giri"), 60_000)
+        self.assertEqual(parse_clock_value("text", "5:59:59"), 21_599_000)
 
 
 class TestRegistro(unittest.TestCase):

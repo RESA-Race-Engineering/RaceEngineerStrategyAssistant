@@ -1,11 +1,11 @@
 # Guida rapida: prove, gara simulata e GUI
 
 Serve solo Python 3.10 o più recente: nessun pacchetto da installare,
-nessuna connessione internet per la GUI.
+nessuna connessione internet per la GUI (solo per il feed Apex).
 
-Su Windows, nei comandi qui sotto `python` si può sostituire con
-`.\.venv\Scripts\python.exe`. Tutti i comandi vanno lanciati dalla
-cartella del progetto.
+Nei comandi qui sotto `python` va adattato al sistema: su Windows
+`.\.venv\Scripts\python.exe` (o `python`), su Linux e WSL `python3`.
+Tutti i comandi vanno lanciati dalla cartella del progetto.
 
 ## 1. Aggiornare
 
@@ -20,7 +20,7 @@ python -m unittest discover -s tests
 python main.py
 ```
 
-Il primo comando deve finire con `OK` (51 prove), il secondo con
+Il primo comando deve finire con `OK`, il secondo con
 `TEST COMPLETATO`. `main.py` scrive in `data/race_engineer.db`, che ora
 è escluso da git.
 
@@ -84,21 +84,47 @@ sospeso e finiscono nello stint giusto.
 
 ## 5. Il giorno della gara
 
-1. Leggere il nome esatto della squadra nel live timing:
+Serve internet sul portatile (anche l'hotspot del telefono): il feed
+arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
+
+**Prima della partenza**
+
+1. `git pull` e le prove del punto 2.
+2. Leggere il nome esatto con cui è iscritta la squadra:
    `python -m livetiming.watch --club kartandgo`
-2. Avviare la GUI collegata al feed di Kart&Go:
-   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,..."`
-   Il feed viene registrato in `data/journal_<data>.jsonl`: **va
-   conservato**, serve a verificare come Apex segnala giri e pit.
-3. Se il feed cade si continua a mano con **Giro a mano** e **PIT**.
-   Senza feed fin dall'inizio: aggiungere `--manual`.
-4. Se il programma si chiude: `python -m gui --resume` riprende la gara
-   dal database.
-5. Per vedere la pagina dai telefoni sulla stessa rete: aggiungere
-   `--host 0.0.0.0` (attenzione: da lì si possono anche confermare i pit).
-6. Esportare in CSV: pulsante **Esporta CSV**, oppure dopo la gara
-   `python -m database.csv_export` (cartella `data/export/gara_<id>`).
-   I CSV usano `;` e si aprono in Excel con un doppio clic.
+   (Ctrl+C per uscire; la colonna "Pilota" contiene il nome da usare).
+3. Avviare la GUI con i piloti nell'ordine previsto:
+   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6"`
+   Se il browser non si apre (per esempio da WSL), aprire a mano
+   http://localhost:8765. In alto deve comparire "Diretta · collegato" e,
+   quando la griglia ha la squadra, sparisce "squadra non agganciata".
+4. **Avvia gara**: pilota di partenza e kart. Si può fare anche a gara
+   iniziata: i giri già arrivati restano in sospeso e vengono attribuiti.
+
+**Durante la gara**
+
+- A ogni PIT IN si apre la finestra del pit: controllare il kart nuovo
+  (quello del feed è solo una proposta), scegliere il pilota, confermare.
+  Se il kart dichiarato e quello del feed non coincidono compare un
+  avviso: il dato non viene mai corretto da solo.
+- Se compare l'avviso "i tempi dei giri sono sfasati" più di una volta,
+  annotare l'ora: vuol dire che Apex aggiorna i tempi in un modo diverso
+  da quello previsto.
+- Se il feed cade: **Giro a mano** e **PIT** funzionano senza feed.
+  Senza feed fin dall'inizio: aggiungere `--manual`.
+- Se il programma si chiude: `python -m gui --resume` riprende la gara
+  dal database.
+- Per vedere la pagina dai telefoni sulla stessa rete: aggiungere
+  `--host 0.0.0.0` (attenzione: da lì si possono anche confermare i pit).
+- Se `config.js` di Apex non risponde: aggiungere `--apex-port 9230`
+  (la porta di Kart&Go).
+
+**Dopo la gara**
+
+- **Esporta CSV** (oppure `python -m database.csv_export`): cartella
+  `data/export/gara_<id>`, file con `;` che si aprono in Excel.
+- **Conservare `data/journal_<data>.jsonl`**: è la registrazione
+  completa del feed e serve a verificare come Apex segnala giri e pit.
 
 ## Cosa è cambiato nel codice esistente
 
@@ -115,6 +141,8 @@ sospeso e finiscono nello stint giusto.
 
 ## Limiti noti
 
-Come Apex segnala giri, pit e cambi kart è ancora da verificare su un
-registro reale: il simulatore è una nostra ricostruzione del formato.
-Il primo journal di una gara vera è la cosa più utile da portare a casa.
+Verificato su feed veri (Pomposa, Misanino, Kart&Go): collegamento,
+griglia, colonne, formato del cronometro (millisecondi ogni 30 s).
+Ancora da verificare, perché nessun kart girava: come Apex segnala giri,
+pit e cambi kart. Il simulatore è una nostra ricostruzione; il journal
+della gara vera è la cosa più utile da portare a casa.

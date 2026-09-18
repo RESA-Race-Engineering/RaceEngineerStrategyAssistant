@@ -39,6 +39,10 @@ PIT_ENTRY_FRACTION = 0.6
 # Peggioramento del passo con i giri dello stint (fatica).
 FATIGUE_MS_PER_LAP = 12
 
+# Il server Apex rimanda il cronometro ogni 30 secondi circa, in
+# millisecondi (osservato su circuito-di-pomposa).
+CLOCK_PERIOD_MS = 30_000
+
 # Bandiera gialla: dal secondo al tempo di gara indicato.
 YELLOW_FROM_MS = (2 * 60 + 10) * 60 * 1000
 YELLOW_TO_MS = (2 * 60 + 14) * 60 * 1000
@@ -98,7 +102,7 @@ def format_lap(milliseconds: int) -> str:
 
 
 def format_clock(milliseconds: int) -> str:
-    """Cronometro come "5:59:59"."""
+    """Cronometro fermo come "5:59:59", prima della partenza."""
 
     total = max(0, milliseconds) // 1000
     hours, rest = divmod(total, 3600)
@@ -434,12 +438,13 @@ class RaceSimulator:
                 "track||Pista simulata",
                 "light|lg|",
                 f"grid||{self._grid()}",
-                f"dyn1|countdown|{format_clock(self.duration_ms)}",
+                # Prima del via il cronometro è un testo fermo.
+                f"dyn1|text|{format_clock(self.duration_ms)}",
             ]
         )
 
-        for second in range(0, self.duration_ms // 1000 + 1):
-            self._push(second * 1000, "tick")
+        for tick_ms in range(0, self.duration_ms + 1, CLOCK_PERIOD_MS):
+            self._push(tick_ms, "tick")
 
         self._push(YELLOW_FROM_MS, "yellow")
         self._push(YELLOW_TO_MS, "green")
@@ -461,7 +466,7 @@ class RaceSimulator:
             if event.kind == "tick":
                 payload = (
                     f"dyn1|countdown|"
-                    f"{format_clock(self.duration_ms - event.time_ms)}"
+                    f"{self.duration_ms - event.time_ms}"
                 )
             elif event.kind == "yellow":
                 payload = "light|ly|"

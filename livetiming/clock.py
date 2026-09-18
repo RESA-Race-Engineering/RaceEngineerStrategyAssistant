@@ -28,6 +28,44 @@ class ClockDirection:
 # cronometro (sessione ricaricata, non semplice scorrimento).
 JUMP_THRESHOLD_MS = 5 * 60 * 1000
 
+# Classi con cui il feed dichiara un cronometro che scorre da solo.
+# Il valore è in millisecondi ("18203766"), in secondi se contiene un
+# punto, e il client ufficiale lo fa avanzare dal momento in cui lo
+# riceve (tzfjc() in javascript_live_timing.min.js). Il server lo
+# rimanda ogni 30 secondi circa.
+RUNNING_CLASSES = {
+    "count": ClockDirection.COUNTING_UP,
+    "countdown": ClockDirection.COUNTING_DOWN,
+    "countdown_text": ClockDirection.COUNTING_DOWN,
+}
+
+
+def parse_clock_value(css_class: str, text: str) -> Optional[int]:
+    """
+    Converte il valore del cronometro in millisecondi.
+
+    Con le classi di RUNNING_CLASSES il valore è numerico; con
+    "countdown_text" è seguito da "_" e da un testo da mostrare.
+    Qualunque altro formato si legge come tempo ("5:59:59").
+    """
+
+    if css_class in RUNNING_CLASSES:
+        value = (text or "").strip()
+
+        if css_class == "countdown_text":
+            value = value.split("_", 1)[0]
+
+        try:
+            if "." in value:
+                return round(float(value) * 1000)
+
+            return int(value)
+
+        except ValueError:
+            pass
+
+    return parse_time_to_ms(text)
+
 
 class RaceClock:
     """
@@ -62,18 +100,18 @@ class RaceClock:
     ) -> None:
         """Registra una lettura del cronometro."""
 
-        value_ms = parse_time_to_ms(text)
+        value_ms = parse_clock_value(css_class, text)
 
         if value_ms is None:
             return
 
-        # La classe dichiarata dal feed è solo un indizio iniziale:
-        # il verso vero si deduce confrontando le letture.
-        if (
-            self.direction == ClockDirection.UNKNOWN
-            and "countdown" in (css_class or "")
-        ):
-            self.direction = ClockDirection.COUNTING_DOWN
+        # Verso dichiarato dal feed: il cronometro scorre da subito,
+        # senza aspettare una seconda lettura.
+        declared = RUNNING_CLASSES.get(css_class)
+
+        if declared is not None:
+            self.direction = declared
+            self.is_running = True
 
         previous = self._last_value_ms
 
@@ -83,6 +121,9 @@ class RaceClock:
             if abs(difference) > JUMP_THRESHOLD_MS:
                 # Salto: si riparte da capo su questa lettura.
                 self._first_value_ms = value_ms
+
+            elif declared is not None:
+                pass
 
             elif difference > 0:
                 self.direction = ClockDirection.COUNTING_UP
