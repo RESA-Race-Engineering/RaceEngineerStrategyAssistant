@@ -22,6 +22,7 @@ from livetiming.protocol import (
     GridRow,
     Sector,
     SessionReset,
+    parse_int,
     parse_payload,
     parse_time_to_ms,
 )
@@ -217,14 +218,25 @@ class TeamTracker:
 
     # ----- ingresso del feed -----
 
-    def process(self, payload: str) -> list:
+    def process(
+        self,
+        payload: str,
+        now_ms: Optional[int] = None,
+    ) -> list:
         """
         Applica un payload del feed e restituisce gli eventi rilevanti.
 
         Il payload viene trattato come un blocco unico: prima si
         aggiornano le celle, poi si interpretano gli attraversamenti,
         così un giro viene riportato con il tempo già aggiornato.
+
+        now_ms è l'istante di ricezione: in diretta si omette, nella
+        rilettura di un registro si passa quello registrato, così il
+        tempo di gara resta corretto a qualunque velocità.
         """
+
+        if now_ms is None:
+            now_ms = int(time.time() * 1000)
 
         events = []
         crossings = []
@@ -242,7 +254,10 @@ class TeamTracker:
                 self._apply_cell(message)
 
             elif isinstance(message, FieldUpdate):
-                self._apply_field(message)
+                self._apply_field(
+                    message,
+                    now_ms=now_ms,
+                )
 
             elif isinstance(message, Crossing):
                 if message.row_id == self.state.row_id:
@@ -251,7 +266,12 @@ class TeamTracker:
         events.extend(self._refresh_from_row())
 
         for crossing in crossings:
-            events.extend(self._handle_crossing(crossing))
+            events.extend(
+                self._handle_crossing(
+                    crossing,
+                    now_ms=now_ms,
+                )
+            )
 
         return events
 
@@ -350,7 +370,11 @@ class TeamTracker:
 
         row.cells[message.cell_id] = message.value
 
-    def _apply_field(self, message: FieldUpdate) -> None:
+    def _apply_field(
+        self,
+        message: FieldUpdate,
+        now_ms: int,
+    ) -> None:
         """Aggiorna i campi generali della sessione."""
 
         if message.field_id == "dyn1":
@@ -359,7 +383,7 @@ class TeamTracker:
             self.clock.update(
                 css_class=message.css_class,
                 text=message.value,
-                now_ms=int(time.time() * 1000),
+                now_ms=now_ms,
             )
 
         elif message.field_id == "title2":
@@ -428,24 +452,26 @@ class TeamTracker:
             self._cell_by_type(row_id, "blp")
         )
 
-        self.state.lap_number = _to_int(
+        self.state.lap_number = parse_int(
             self._cell_by_type(row_id, "tlp")
         )
 
-        self.state.pit_count = _to_int(
+        self.state.pit_count = parse_int(
             self._cell_by_type(row_id, "pit")
         )
 
-        self.state.position = _to_int(
+        self.state.position = parse_int(
             self._cell_by_type(row_id, "rk")
         )
 
         return events
 
-    def _handle_crossing(self, crossing: Crossing) -> list:
+    def _handle_crossing(
+        self,
+        crossing: Crossing,
+        now_ms: int,
+    ) -> list:
         """Traduce un attraversamento in un evento di gara."""
-
-        now_ms = int(time.time() * 1000)
 
         race_time_ms = self.clock.race_time_ms(now_ms)
         self.state.race_time_ms = race_time_ms
@@ -488,17 +514,3 @@ class TeamTracker:
             ]
 
         return []
-
-
-def _to_int(text: str) -> Optional[int]:
-    """Converte in intero il contenuto di una cella, se possibile."""
-
-    digits = re.sub(r"[^0-9-]", "", text or "")
-
-    if not digits or digits == "-":
-        return None
-
-    try:
-        return int(digits)
-    except ValueError:
-        return None

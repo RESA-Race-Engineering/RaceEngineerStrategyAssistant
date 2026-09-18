@@ -1,17 +1,38 @@
 import sqlite3
 from pathlib import Path
 
+from core.models import (
+    Driver,
+    Kart,
+    Lap,
+    PitStop,
+    Race,
+    RaceConfig,
+    RaceEvent,
+    Stint,
+    Team,
+)
+
 
 class RaceDatabase:
     """Gestisce il database SQLite della gara."""
 
-    def __init__(self, db_path: str = "data/race_engineer.db"):
+    def __init__(
+        self,
+        db_path: str = "data/race_engineer.db",
+        check_same_thread: bool = True,
+    ):
         self.db_path = Path(db_path)
 
         # Crea la cartella data se non esiste
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.connection = sqlite3.connect(self.db_path)
+        # check_same_thread=False permette l'uso da più thread (GUI):
+        # chi lo sceglie deve serializzare gli accessi con un lock.
+        self.connection = sqlite3.connect(
+            self.db_path,
+            check_same_thread=check_same_thread,
+        )
         self.create_tables()
 
         # Permette di leggere le colonne tramite nome
@@ -605,6 +626,145 @@ class RaceDatabase:
         )
 
         self.connection.commit()
+
+    def get_last_race_id(self) -> int | None:
+        """Restituisce l'ID dell'ultima gara creata."""
+
+        cursor = self.connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT MAX(id) AS id
+            FROM races
+            """
+        )
+
+        return cursor.fetchone()["id"]
+
+    def _race_rows(
+        self,
+        table: str,
+        race_id: int,
+        order_by: str,
+    ):
+        """
+        Legge tutte le righe di una tabella relative a una gara.
+
+        Tabella e ordinamento arrivano solo da load_race(), mai da
+        dati esterni.
+        """
+
+        cursor = self.connection.cursor()
+
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {table}
+            WHERE race_id = ?
+            ORDER BY {order_by}
+            """,
+            (race_id,),
+        )
+
+        return cursor.fetchall()
+
+    def load_race(self, race_id: int) -> Race:
+        """
+        Ricostruisce una gara dal database.
+
+        Gli oggetti usano gli ID del database, come durante la gara.
+        Serve a riaprire una gara dopo la chiusura del programma e a
+        esportarla. Della configurazione il database conserva solo la
+        durata: il resto prende i valori predefiniti di RaceConfig.
+        """
+
+        race_row = self.get_race(race_id)
+
+        if race_row is None:
+            raise ValueError(
+                f"La gara {race_id} non esiste nel database."
+            )
+
+        race = Race(
+            config=RaceConfig(
+                duration_ms=race_row["duration_ms"],
+            )
+        )
+
+        race.teams = [
+            Team(
+                id=row["id"],
+                name=row["name"],
+            )
+            for row in self._race_rows("teams", race_id, "id")
+        ]
+
+        race.karts = [
+            Kart(
+                id=row["id"],
+                number=row["number"],
+            )
+            for row in self._race_rows("karts", race_id, "id")
+        ]
+
+        race.drivers = [
+            Driver(
+                id=row["id"],
+                name=row["name"],
+                team_id=row["team_id"],
+            )
+            for row in self._race_rows("drivers", race_id, "id")
+        ]
+
+        race.laps = [
+            Lap(
+                lap_number=row["lap_number"],
+                lap_time_ms=row["lap_time_ms"],
+                race_time_ms=row["race_time_ms"],
+                driver_id=row["driver_id"],
+                team_id=row["team_id"],
+                kart_id=row["kart_id"],
+            )
+            for row in self._race_rows("laps", race_id, "lap_number")
+        ]
+
+        race.stints = [
+            Stint(
+                stint_number=row["stint_number"],
+                driver_id=row["driver_id"],
+                kart_id=row["kart_id"],
+                start_time_ms=row["start_time_ms"],
+                end_time_ms=row["end_time_ms"],
+                start_lap=row["start_lap"],
+                end_lap=row["end_lap"],
+            )
+            for row in self._race_rows("stints", race_id, "stint_number")
+        ]
+
+        race.pit_stops = [
+            PitStop(
+                kart_out_id=row["kart_out_id"],
+                kart_in_id=row["kart_in_id"],
+                lap_before=row["lap_before"],
+                driver_out=row["driver_out"],
+                driver_in=row["driver_in"],
+                duration_ms=row["duration_ms"],
+                refuel=bool(row["refuel"]),
+                tire_change=bool(row["tire_change"]),
+            )
+            for row in self._race_rows("pit_stops", race_id, "lap_before")
+        ]
+
+        race.events = [
+            RaceEvent(
+                time_ms=row["time_ms"],
+                description=row["description"],
+                penalty_ms=row["penalty_ms"],
+            )
+            for row in self._race_rows("events", race_id, "time_ms")
+        ]
+
+        return race
 
     def close(self):
         """Chiude la connessione al database."""

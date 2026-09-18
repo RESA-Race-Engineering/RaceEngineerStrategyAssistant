@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Race Engineer</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-title">Race Engineer</div>
+      <div class="brand-team" id="team">–</div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><span class="kpi-label">Pos</span><span class="kpi-value" id="k-pos">–</span></div>
+      <div class="kpi"><span class="kpi-label">Distacco</span><span class="kpi-value" id="k-gap">–</span></div>
+      <div class="kpi"><span class="kpi-label">Giro</span><span class="kpi-value" id="k-lap">–</span></div>
+      <div class="kpi"><span class="kpi-label">Tempo gara</span><span class="kpi-value" id="k-time">–</span></div>
+      <div class="kpi"><span class="kpi-label">Mancano</span><span class="kpi-value" id="k-remaining">–</span></div>
+    </div>
+
+    <div class="status">
+      <span class="chip" id="flag">–</span>
+      <span class="chip" id="feed">–</span>
+    </div>
+
+    <div class="controls">
+      <label class="window-select">
+        <span>Analisi</span>
+        <select id="window"></select>
+      </label>
+      <button id="btn-theme" class="icon" title="Cambia tema" aria-label="Cambia tema">◐</button>
+    </div>
+  </header>
+
+  <div id="banners"></div>
+
+  <nav class="tabs">
+    <div class="tab-buttons" role="tablist">
+      <button data-tab="race" class="active">Gara</button>
+      <button data-tab="standings">Classifica</button>
+      <button data-tab="drivers">Piloti e stint</button>
+      <button data-tab="karts">Kart</button>
+      <button data-tab="log">Regole e registro</button>
+    </div>
+    <div class="actions">
+      <button id="btn-start" class="primary" hidden>Avvia gara</button>
+      <button id="btn-pit" class="danger" hidden>PIT</button>
+      <button id="btn-lap">Giro a mano</button>
+      <button id="btn-event">Evento</button>
+      <button id="btn-export">Esporta CSV</button>
+    </div>
+  </nav>
+
+  <main>
+    <section id="tab-race" class="tab active">
+      <div class="tiles" id="tiles"></div>
+
+      <div class="grid-main">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Tempi sul giro</h2>
+            <span class="sub" id="chart-window-sub"></span>
+          </div>
+          <div id="chart-window" class="chart"></div>
+          <div class="legend" id="legend-window"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Davanti e dietro</h2>
+            <span class="sub">stessa finestra di analisi</span>
+          </div>
+          <div id="neighbors" class="neighbors"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Stint e finestra di pit</h2>
+          <span class="sub" id="timeline-sub"></span>
+        </div>
+        <div id="timeline" class="chart timeline"></div>
+      </div>
+    </section>
+
+    <section id="tab-standings" class="tab">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Classifica</h2>
+          <span class="sub" id="standings-sub"></span>
+        </div>
+        <div id="standings-table" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="tab-drivers" class="tab">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Tutta la gara</h2>
+          <span class="sub">giri colorati per pilota · i giri con pit o bandiera gialla sono i triangoli in alto</span>
+        </div>
+        <div id="chart-race" class="chart tall"></div>
+        <div class="legend" id="legend-race"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Passo dei piloti</h2>
+            <span class="sub">media dei giri puliti, scarto dal più veloce · barretta = deviazione standard</span>
+          </div>
+          <div id="chart-drivers" class="chart short"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Piloti</h2>
+          </div>
+          <div id="drivers-table" class="table-wrap"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Stint</h2>
+          <span class="sub">clic su una riga per analizzare quello stint</span>
+        </div>
+        <div id="stints-table" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="tab-karts" class="tab">
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Classifica dei kart</h2>
+            <span class="sub">scarto mediano dal passo abituale di chi lo guida</span>
+          </div>
+          <div id="chart-karts" class="chart tall"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Come leggerla</h2>
+          </div>
+          <div class="explain">
+            <p>I kart girano fra le squadre a ogni pit. Per ogni squadra si prende il suo passo abituale
+            (mediana dei giri puliti); ogni giro diventa uno scarto da quel passo. Lo scarto mediano di un
+            kart, su più squadre, misura il kart e non chi lo guida.</p>
+            <p><strong>Positivo = kart lento.</strong> Con un kart lento conviene anticipare il pit per
+            cambiarlo; con un kart veloce conviene allungare lo stint, senza superare la durata massima.</p>
+            <p>Servono almeno 5 giri puliti perché un kart compaia. I dati arrivano dal feed di tutte le squadre.</p>
+          </div>
+          <div id="karts-table" class="table-wrap"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-log" class="tab">
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Regolamento</h2>
+            <span class="sub" id="rules-sub"></span>
+          </div>
+          <div id="rules"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Avvisi</h2>
+          </div>
+          <div id="alerts" class="alerts"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Pit stop</h2>
+          </div>
+          <div id="pits-table" class="table-wrap"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Eventi e penalità</h2>
+          </div>
+          <div id="events-table" class="table-wrap"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="dlg-start">
+    <form method="dialog" data-action="/api/start">
+      <h2>Avvio gara</h2>
+      <label>Pilota di partenza <select name="driver_id" required></select></label>
+      <label>Kart <input name="kart_number" inputmode="numeric" required autocomplete="off"></label>
+      <p class="hint" id="start-hint"></p>
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate>Annulla</button>
+        <button value="ok" class="primary">Avvia</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-pit">
+    <form method="dialog" data-action="/api/pit">
+      <h2>Pit stop</h2>
+      <p class="pit-current" id="pit-current"></p>
+      <label>Nuovo kart <input name="kart_number" inputmode="numeric" required autocomplete="off"></label>
+      <label>Nuovo pilota <select name="driver_id" required></select></label>
+      <label>Durata pit (s) <input name="duration_s" inputmode="decimal" autocomplete="off"></label>
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="refuel"> Rifornimento</label>
+        <label class="check"><input type="checkbox" name="tire_change"> Cambio gomme</label>
+      </div>
+      <p class="hint" id="pit-hint"></p>
+      <div class="dialog-actions">
+        <button value="discard" id="btn-discard" formnovalidate class="ghost">Falso allarme</button>
+        <button value="cancel" formnovalidate>Chiudi</button>
+        <button value="ok" class="danger">Conferma pit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-lap">
+    <form method="dialog" data-action="/api/lap">
+      <h2>Giro a mano</h2>
+      <label>Tempo sul giro <input name="lap_time" placeholder="53.123" required autocomplete="off"></label>
+      <p class="hint">Per quando il feed manca: il giro va allo stint in corso.</p>
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate>Annulla</button>
+        <button value="ok" class="primary">Registra</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-event">
+    <form method="dialog" data-action="/api/event">
+      <h2>Evento o penalità</h2>
+      <label>Descrizione <input name="description" required autocomplete="off"></label>
+      <label>Penalità (s) <input name="penalty_s" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate>Annulla</button>
+        <button value="ok" class="primary">Registra</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="tooltip" class="tooltip" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

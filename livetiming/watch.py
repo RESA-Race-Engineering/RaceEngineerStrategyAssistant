@@ -211,7 +211,10 @@ def main() -> None:
                 show_grid(payload)
                 continue
 
-            for event in tracker.process(payload):
+            for event in tracker.process(
+                payload,
+                now_ms=received_at_ms,
+            ):
                 print(f"[{stamp}] {describe(event)}")
 
         return

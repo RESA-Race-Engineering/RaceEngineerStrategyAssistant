@@ -384,3 +384,17 @@ def parse_time_to_ms(text: str) -> Optional[int]:
         + seconds * 1_000
         + milliseconds
     )
+
+
+def parse_int(text: str) -> Optional[int]:
+    """Converte in intero il contenuto di una cella, se possibile."""
+
+    digits = re.sub(r"[^0-9-]", "", text or "")
+
+    if not digits or digits == "-":
+        return None
+
+    try:
+        return int(digits)
+    except ValueError:
+        return None
