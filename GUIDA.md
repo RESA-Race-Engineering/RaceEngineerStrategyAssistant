@@ -93,8 +93,9 @@ arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
 2. Leggere il nome esatto con cui è iscritta la squadra:
    `python -m livetiming.watch --club kartandgo`
    (Ctrl+C per uscire; la colonna "Pilota" contiene il nome da usare).
-3. Avviare la GUI con i piloti nell'ordine previsto:
-   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6"`
+3. Avviare la GUI con i piloti nell'ordine previsto e un database
+   solo per questa gara (AAAAMMGG = data della gara, vedi il punto 6):
+   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6" --db data/gara_AAAAMMGG.db`
    Se il browser non si apre (per esempio da WSL), aprire a mano
    http://localhost:8765. In alto deve comparire "Diretta · collegato" e,
    quando la griglia ha la squadra, sparisce "squadra non agganciata".
@@ -112,8 +113,9 @@ arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
   da quello previsto.
 - Se il feed cade: **Giro a mano** e **PIT** funzionano senza feed.
   Senza feed fin dall'inizio: aggiungere `--manual`.
-- Se il programma si chiude: `python -m gui --resume` riprende la gara
-  dal database.
+- Se il programma si chiude:
+  `python -m gui --resume --db data/gara_AAAAMMGG.db` riprende la gara
+  dal database (stesso `--db` usato all'avvio).
 - Per vedere la pagina dai telefoni sulla stessa rete: aggiungere
   `--host 0.0.0.0` (attenzione: da lì si possono anche confermare i pit).
 - Se `config.js` di Apex non risponde: aggiungere `--apex-port 9230`
@@ -121,16 +123,64 @@ arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
 
 **Dopo la gara**
 
-- **Esporta CSV** (oppure `python -m database.csv_export`): cartella
+- **Esporta CSV** (oppure
+  `python -m database.csv_export --db data/gara_AAAAMMGG.db`): cartella
   `data/export/gara_<id>`, file con `;` che si aprono in Excel.
 - **Conservare `data/journal_<data>.jsonl`**: è la registrazione
   completa del feed e serve a verificare come Apex segnala giri e pit.
+
+## 6. Il database
+
+Il database è SQLite: un unico file, scritto dalla libreria standard di
+Python. Per far girare il programma non serve installare nessun DBMS;
+per consultarlo basta un programma che apra i file SQLite (DB Browser
+for SQLite, DBeaver, ...).
+
+**Cosa ci finisce e quando**
+
+- In diretta e in modalità manuale la GUI scrive ogni giro, stint, pit
+  ed evento nel momento in cui succede. In rilettura (`--replay`) non
+  scrive niente.
+- Senza `--db` il file è `data/race_engineer.db`, lo stesso in cui
+  scrive `python main.py`: lì ci sono anche le gare di prova
+  ("Test Race"). Per questo la gara vera va su un file suo, con `--db`
+  (punto 5), e lo stesso `--db` va ripetuto con `--resume` e con
+  `database.csv_export`.
+
+**Non aprire il file mentre la GUI è accesa**
+
+Se un altro programma tiene aperto il database mentre la GUI scrive,
+la GUI trova il file bloccato ("database is locked"): non si chiude, ma
+il giro o il pit di quel momento può mancare nel database. Aprirlo da
+Windows attraverso `\\wsl$\...` è ancora peggio: su quel percorso i
+blocchi di SQLite non sono affidabili e il file si può rovinare.
+
+Durante la gara si lavora quindi su una copia. Questo comando la crea
+in modo coerente anche con la GUI accesa:
+
+```
+python -c "import sqlite3; sqlite3.connect('data/gara_AAAAMMGG.db').backup(sqlite3.connect('data/copia.db'))"
+```
+
+La copia si apre senza rischi: da Windows, sullo stesso portatile, è in
+`\\wsl$\Ubuntu\<cartella del progetto>\data\copia.db`; per un altro
+computer si passa con una chiavetta o in chat. Per avere dati più
+recenti si rilancia il comando, dopo aver chiuso la copia nel
+programma che la stava leggendo.
+
+**Senza un programma per SQLite**
+
+Il pulsante **Esporta CSV** (punto 5, "Dopo la gara") funziona anche a
+gara in corso: file con `;` che si aprono in Excel su qualsiasi
+computer.
 
 ## Cosa è cambiato nel codice esistente
 
 - `database/db.py`: tolti i metodi `update_stint_*` duplicati; nuovi
   `load_race()` e `get_last_race_id()`; `RaceDatabase(..., check_same_thread=False)`
-  per l'uso dalla GUI, che gira su più thread.
+  per l'uso dalla GUI, che gira su più thread; nuovo
+  `update_pit_stop_duration()`, per la durata di un pit confermato
+  mentre il kart era ancora ai box.
 - `core/analytics.py`: le finestre valgono per tutta la squadra e non
   più per un solo kart (`get_laps_for_window` non prende più `kart_id`),
   lo "stint corrente" funziona anche con lo stint aperto, ci sono le
