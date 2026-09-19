@@ -17,6 +17,7 @@ let windowKey = load("window") || "Ultimi 10";
 let selectedStint = Number(load("stint")) || null;
 let activeTab = load("tab") || "race";
 let pitShownFor = null;
+let startShown = false;
 let pollTimer = null;
 
 const $ = (id) => document.getElementById(id);
@@ -253,15 +254,22 @@ function renderBanners() {
 
   const auto = state.auto_start;
 
-  if (!state.current && auto?.enabled) {
+  if (!state.current && auto?.enabled && auto.started && !auto.driver) {
+    banners.push({
+      cls: "bad pulse",
+      text: "GARA PARTITA: scegliere il pilota di partenza. Tempo e giro del via sono già presi dal feed" +
+        (state.pending_laps ? `; giri in sospeso: ${state.pending_laps}.` : "."),
+      buttons: [["Scegli pilota", "danger", openStart]],
+    });
+  } else if (!state.current && auto?.enabled) {
     banners.push({
       cls: "warn",
       text: (auto.practice
-        ? `Sessione "${esc(state.race.title)}": la gara si avvierà da sola quando parte la sessione di gara`
-        : "In attesa della partenza: la gara si avvia da sola dal feed") +
-        ` (pilota di partenza: ${esc(auto.driver || "–")}).` +
+        ? `Sessione "${esc(state.race.title)}": la gara si avvierà da sola quando parte la sessione di gara.`
+        : "In attesa del via: la gara si avvia da sola dal feed.") +
+        (auto.driver ? ` Pilota di partenza: ${esc(auto.driver)}.` : " Scegliere il pilota di partenza.") +
         (state.source.bound ? "" : " Squadra non ancora agganciata."),
-      buttons: [["Avvia a mano", "", openStart]],
+      buttons: [[auto.driver ? "Cambia pilota" : "Scegli pilota di partenza", "primary", openStart]],
     });
   } else if (!state.current && (state.pending_laps || state.source.bound)) {
     banners.push({
@@ -1112,12 +1120,26 @@ function fillDrivers(select, selectedId = null) {
 function openStart() {
   if (!state) return;
   const form = $("dlg-start").querySelector("form");
-  fillDrivers(form.driver_id);
+  const auto = state.auto_start;
+  fillDrivers(form.driver_id, auto?.driver_id ?? null);
   form.kart_number.value = "";
   form.kart_number.placeholder = state.feed.kart ? `#${state.feed.kart}` : "";
-  $("start-hint").textContent = state.feed.kart
-    ? `Il feed indica il kart #${state.feed.kart}: lasciare vuoto per usarlo.`
-    : "Nessun kart dal feed: inserirlo a mano.";
+  form.querySelector("button.primary").textContent = auto?.enabled ? "Conferma" : "Avvia";
+
+  const kartHint = state.feed.kart
+    ? `Kart dal feed: #${state.feed.kart}.`
+    : "Nessun kart dal feed.";
+
+  $("start-hint").textContent = auto?.enabled
+    ? (auto.started
+      ? "Gara partita: tempo e giro del via sono già presi dal feed. "
+      : "La gara parte da sola al via, con tempo, giro e kart dal feed. ") +
+      kartHint + " Scrivere un kart solo per avviarla subito a mano."
+    : state.feed.kart
+      ? `${kartHint} Lasciare vuoto per usarlo.`
+      : "Nessun kart dal feed: inserirlo a mano.";
+
+  if (auto?.started) startShown = true;
   $("dlg-start").showModal();
   form.driver_id.focus();
 }
@@ -1173,6 +1195,12 @@ function syncDialogs() {
   // Si apre da sola al PitIn, una volta per pit.
   if (pending && pitShownFor !== pending.lap_before && !dialog.open && !document.querySelector("dialog[open]")) {
     openPit();
+  }
+
+  // Al via senza pilota di partenza la scelta si apre da sola, una volta.
+  const auto = state.auto_start;
+  if (!state.current && auto?.enabled && auto.started && !auto.driver && !startShown && !document.querySelector("dialog[open]")) {
+    openStart();
   }
 
   if (!pending && dialog.open && $("btn-discard").hidden === false) {

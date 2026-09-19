@@ -437,14 +437,19 @@ class TestAvvioAutomatico(unittest.TestCase):
             f'<td data-id="r1c12">{pits}</td></tr></tbody>'
         )
 
-    def session(self, start_driver=""):
+    def session(self, start_driver_id=None):
+        """start_driver_id: pilota scelto nella GUI prima del via."""
+
         session = RaceSession.create(
             team_name=TEAM,
             driver_names=DRIVERS,
             config=RaceConfig(duration_ms=self.SIX_HOURS_MS),
         )
 
-        session.enable_auto_start(start_driver)
+        session.enable_auto_start()
+
+        if start_driver_id is not None:
+            session.start_race(driver_id=start_driver_id)
 
         return session
 
@@ -462,7 +467,7 @@ class TestAvvioAutomatico(unittest.TestCase):
         )
 
     def test_prove_poi_partenza(self):
-        session = self.session(start_driver="luca")
+        session = self.session(start_driver_id=2)
 
         # Prove: il cronometro corre ma la gara non parte, e i giri
         # delle prove non finiscono nella gara.
@@ -491,8 +496,43 @@ class TestAvvioAutomatico(unittest.TestCase):
             [1, 2],
         )
 
-    def test_gui_aperta_a_gara_iniziata_senza_pit(self):
+    def test_pilota_scelto_dopo_il_via(self):
         session = self.session()
+
+        self.feed(session, self.grid("Gara", "text|06:00:00"), 0)
+        self.feed(session, f"dyn1|countdown|{self.SIX_HOURS_MS}", 1_000)
+
+        # Via senza pilota: niente stint, i giri aspettano la scelta.
+        self.lap(session, 1, 37_500)
+        self.lap(session, 2, 74_000)
+
+        self.assertEqual(session.race.stints, [])
+        self.assertIsNotNone(session.start_point)
+        self.assertEqual(len(session.pending_laps), 2)
+
+        session.start_race(driver_id=3)
+
+        (stint,) = session.race.stints
+        self.assertEqual(session.current_driver().name, "Andrea")
+        self.assertEqual(session.kart_number(stint.kart_id), 18)
+        self.assertEqual((stint.start_lap, stint.start_time_ms), (0, 0))
+
+        self.assertEqual(
+            [lap.lap_number for lap in session.race.laps],
+            [1, 2],
+        )
+
+    def test_kart_scritto_avvia_subito(self):
+        session = self.session()
+
+        self.feed(session, self.grid("Gara", "text|06:00:00"), 0)
+        session.start_race(driver_id=1, kart_number="21")
+
+        (stint,) = session.race.stints
+        self.assertEqual(session.kart_number(stint.kart_id), 21)
+
+    def test_gui_aperta_a_gara_iniziata_senza_pit(self):
+        session = self.session(start_driver_id=1)
 
         remaining_ms = 4 * HOUR_MS
         self.feed(session, self.grid("Gara", f"countdown|{remaining_ms}", laps="190", on_track="2:00"), 0)
@@ -505,7 +545,7 @@ class TestAvvioAutomatico(unittest.TestCase):
         self.assertEqual(session.race.laps[0].race_time_ms, 2 * HOUR_MS + 36_500)
 
     def test_gui_aperta_a_gara_iniziata_dopo_i_pit(self):
-        session = self.session()
+        session = self.session(start_driver_id=1)
 
         remaining_ms = 4 * HOUR_MS
         self.feed(
@@ -519,7 +559,7 @@ class TestAvvioAutomatico(unittest.TestCase):
         self.assertEqual(stint.start_time_ms, 2 * HOUR_MS - 12 * 60_000)
 
     def test_gui_aperta_con_il_kart_ai_box(self):
-        session = self.session()
+        session = self.session(start_driver_id=1)
 
         remaining_ms = 4 * HOUR_MS
         self.feed(
@@ -539,7 +579,7 @@ class TestAvvioAutomatico(unittest.TestCase):
 
     def test_pilota_di_partenza_sconosciuto(self):
         with self.assertRaises(ValueError):
-            self.session(start_driver="Nessuno")
+            self.session(start_driver_id=99)
 
 if __name__ == "__main__":
     unittest.main()

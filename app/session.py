@@ -126,6 +126,17 @@ class PendingPit:
         return self.out_race_time_ms - self.in_race_time_ms
 
 
+@dataclass
+class StartPoint:
+    """Via della gara letto dal feed, in attesa del pilota di partenza."""
+
+    start_lap: int
+    start_time_ms: int
+    kart_number: str
+    race_time_ms: int
+    lap_number: int
+
+
 class RaceSession:
     """Stato completo della gara in corso."""
 
@@ -146,10 +157,11 @@ class RaceSession:
         # con il kart del feed e il pilota successivo.
         self.auto_pit = auto_pit
 
-        # Avvio automatico (enable_auto_start): la gara parte da sola
-        # con questo pilota, None = il primo della lista.
+        # Avvio automatico (enable_auto_start): il via lo dà il feed,
+        # il pilota di partenza l'operatore.
         self.auto_start = False
         self.start_driver_id: Optional[int] = None
+        self.start_point: Optional[StartPoint] = None
 
         self.tracker = TeamTracker(
             team_name=team_name,
@@ -422,43 +434,23 @@ class RaceSession:
     # AVVIO AUTOMATICO
     # ==============================
 
-    def enable_auto_start(self, driver_name: str = "") -> None:
+    def enable_auto_start(self) -> None:
         """
-        La gara si avvia da sola, senza "Avvia gara": il primo stint
-        si apre quando la sessione di gara è in corso e la squadra è
-        agganciata. Senza driver_name parte il primo pilota della lista.
+        La gara si avvia da sola: al via il feed dà tempo, giro e kart,
+        l'operatore sceglie il pilota di partenza nella GUI, prima o
+        dopo il via (start_race senza kart).
         """
 
         self.auto_start = True
-        self.start_driver_id = None
 
-        if not driver_name.strip():
-            return
-
-        for driver in self.race.drivers:
-            if driver.name.strip().casefold() == driver_name.strip().casefold():
-                self.start_driver_id = driver.id
-                return
-
-        raise ValueError(
-            f"Il pilota di partenza '{driver_name}' non è fra i piloti."
-        )
-
-    def _maybe_auto_start(self, now_ms: int) -> None:
+    def _find_start_point(self, now_ms: int) -> Optional[StartPoint]:
         """
-        Avvia la gara con kart, giro e tempo presi dal feed.
+        Punto di partenza del primo stint, se la gara è in corso.
 
         Vale anche se la GUI parte a gara iniziata: senza pit lo stint
         in corso è partito con la gara; dopo un pit è partito
         all'ultima uscita dai box, ricavata dalla colonna "In pista".
         """
-
-        if (
-            not self.auto_start
-            or self.race.stints
-            or not self.race.drivers
-        ):
-            return
 
         state = self.tracker.state
 
@@ -469,13 +461,13 @@ class RaceSession:
             or not self.tracker.clock.is_running
             or _is_practice(state.session_title)
         ):
-            return
+            return None
 
         # Istante del payload, non dell'orologio locale.
         race_time_ms = self.tracker.clock.race_time_ms(now_ms)
 
         if race_time_ms is None:
-            return
+            return None
 
         if not state.pit_count:
             start_lap = 0
@@ -484,9 +476,15 @@ class RaceSession:
         else:
             # La cella conta la sosta ai box: si aspetta l'uscita.
             if state.on_track_ms is None and state.on_track_text:
-                return
+                return None
 
-            start_lap = None
+            if self.pending_laps:
+                start_lap = min(
+                    lap.lap_number
+                    for lap in self.pending_laps
+                ) - 1
+            else:
+                start_lap = state.lap_number or 0
 
             start_time_ms = (
                 max(0, race_time_ms - state.on_track_ms)
@@ -494,23 +492,58 @@ class RaceSession:
                 else race_time_ms
             )
 
-        driver_id = (
-            self.start_driver_id
-            or self.race.drivers[0].id
-        )
-
-        self._start(
-            driver_id=driver_id,
-            kart_number=state.kart_number,
+        return StartPoint(
             start_lap=start_lap,
             start_time_ms=start_time_ms,
+            kart_number=state.kart_number,
+            race_time_ms=race_time_ms,
+            lap_number=state.lap_number or 0,
+        )
+
+    def _maybe_auto_start(self, now_ms: int) -> None:
+        """
+        Fissa il punto di partenza al via e apre il primo stint appena
+        c'è anche il pilota scelto dall'operatore. Fino ad allora i
+        giri restano in sospeso.
+        """
+
+        if (
+            not self.auto_start
+            or self.race.stints
+            or not self.race.drivers
+        ):
+            return
+
+        if self.start_point is None:
+            self.start_point = self._find_start_point(now_ms)
+
+            if self.start_point is None:
+                return
+
+            if self.start_driver_id is None:
+                self._alert(
+                    "warning",
+                    "Gara partita: scegliere il pilota di partenza. "
+                    "I giri restano in sospeso fino alla scelta.",
+                )
+
+        if self.start_driver_id is None:
+            return
+
+        point = self.start_point
+
+        self._start(
+            driver_id=self.start_driver_id,
+            kart_number=point.kart_number,
+            start_lap=point.start_lap,
+            start_time_ms=point.start_time_ms,
         )
 
         self._alert(
             "info",
             f"Avvio automatico dal feed: tempo di gara "
-            f"{format_time(race_time_ms)}, giro {state.lap_number or 0}, "
-            f"stint iniziato a {format_time(start_time_ms)}.",
+            f"{format_time(point.race_time_ms)}, giro {point.lap_number}, "
+            f"stint iniziato a {format_time(point.start_time_ms)}.",
         )
 
     # ==============================
@@ -551,6 +584,7 @@ class RaceSession:
             # sono delle prove, non della gara.
             if not self.race.stints:
                 self.pending_laps = []
+                self.start_point = None
 
             self._alert(
                 "info",
@@ -767,12 +801,35 @@ class RaceSession:
         """
         Apre il primo stint con il pilota e il kart di partenza.
 
-        Senza kart_number vale il kart indicato dal feed.
+        Senza kart_number vale il kart indicato dal feed; con l'avvio
+        automatico il pilota vale dal via, che fissa il feed. Con il
+        kart scritto a mano la gara parte subito.
         """
 
         with self.lock:
             if self.race.stints:
                 raise ValueError("La gara è già avviata.")
+
+            if not any(
+                driver.id == driver_id
+                for driver in self.race.drivers
+            ):
+                raise ValueError(f"Il Pilota {driver_id} non esiste nella gara.")
+
+            # Avvio automatico: il pilota si ricorda e la gara parte dal
+            # punto fissato al via (subito, se il via c'è già stato).
+            if self.auto_start and _is_blank(kart_number):
+                self.start_driver_id = driver_id
+
+                if self.start_point is None:
+                    self._alert(
+                        "info",
+                        f"Pilota di partenza: {self._driver_name(driver_id)}. "
+                        f"La gara parte da sola al via.",
+                    )
+
+                self._maybe_auto_start(self.now_ms())
+                return
 
             if _is_blank(kart_number):
                 kart_number = self.tracker.state.kart_number

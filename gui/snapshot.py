@@ -455,11 +455,10 @@ def _build(
         ],
         "auto_start": {
             "enabled": session.auto_start,
-            "driver": drivers.get(
-                session.start_driver_id
-                or (race.drivers[0].id if race.drivers else None)
-            ),
+            "driver_id": session.start_driver_id,
+            "driver": drivers.get(session.start_driver_id),
             "practice": _is_practice(state.session_title),
+            "started": session.start_point is not None,
         },
         "current": current,
         "pending_pit": pending_dict,

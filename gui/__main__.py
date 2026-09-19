@@ -52,7 +52,7 @@ def main() -> None:
     parser.add_argument(
         "--drivers",
         default="",
-        help="Piloti separati da virgola, nell'ordine previsto.",
+        help="Piloti separati da virgola, in qualsiasi ordine.",
     )
 
     source = parser.add_mutually_exclusive_group()
@@ -114,12 +114,6 @@ def main() -> None:
         type=float,
         default=6,
         help="Durata della gara in ore.",
-    )
-
-    parser.add_argument(
-        "--start-driver",
-        default="",
-        help="Pilota di partenza per l'avvio automatico (predefinito: il primo di --drivers).",
     )
 
     parser.add_argument(
@@ -188,13 +182,10 @@ def main() -> None:
             auto_pit=arguments.auto_pit,
         )
 
-    # Con il feed la gara parte da sola quando parte la sessione di
-    # gara, anche se la GUI si apre a gara iniziata.
+    # Con il feed il via lo dà la sessione di gara, anche se la GUI si
+    # apre a gara iniziata; il pilota di partenza si sceglie nella GUI.
     if not arguments.manual and not arguments.no_auto_start:
-        try:
-            session.enable_auto_start(arguments.start_driver)
-        except ValueError as error:
-            raise SystemExit(str(error))
+        session.enable_auto_start()
 
     # ----- sorgente -----
 
