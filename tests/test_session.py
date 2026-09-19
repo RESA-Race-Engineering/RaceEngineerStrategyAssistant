@@ -413,5 +413,133 @@ class TestPitKartAndGo(unittest.TestCase):
         self.check(self.run_pit(auto_pit=True))
 
 
+
+class TestAvvioAutomatico(unittest.TestCase):
+    """La gara parte da sola, con kart, giro e tempo presi dal feed."""
+
+    SIX_HOURS_MS = 6 * HOUR_MS
+
+    def grid(self, title, clock, laps="", pits="", on_track="0:00", kart="18"):
+        return (
+            f"init|p|\ntitle2||{title}\ndyn1|{clock}\ngrid||<tbody>"
+            '<tr data-id="r0" class="head" data-pos="0">'
+            '<td data-id="c3" data-type="rk">Cla</td>'
+            '<td data-id="c4" data-type="no">Kart</td>'
+            '<td data-id="c5" data-type="dr">Pilota</td>'
+            '<td data-id="c6" data-type="llp">Ultimo T.</td>'
+            '<td data-id="c9" data-type="tlp">Giri</td>'
+            '<td data-id="c11" data-type="otr">In pista</td>'
+            '<td data-id="c12" data-type="pit">Pit stop</td></tr>'
+            '<tr data-id="r1" data-pos="1">'
+            f'<td data-id="r1c3">1</td><td data-id="r1c4">{kart}</td>'
+            f'<td data-id="r1c5">{TEAM}</td><td data-id="r1c6">36.500</td>'
+            f'<td data-id="r1c9">{laps}</td><td data-id="r1c11">{on_track}</td>'
+            f'<td data-id="r1c12">{pits}</td></tr></tbody>'
+        )
+
+    def session(self, start_driver=""):
+        session = RaceSession.create(
+            team_name=TEAM,
+            driver_names=DRIVERS,
+            config=RaceConfig(duration_ms=self.SIX_HOURS_MS),
+        )
+
+        session.enable_auto_start(start_driver)
+
+        return session
+
+    def feed(self, session, payload, at_ms):
+        session.process_payload(
+            payload,
+            received_at_ms=START_MS + at_ms,
+        )
+
+    def lap(self, session, number, at_ms):
+        self.feed(
+            session,
+            f"r1c6||36.500\nr1c9||{number}\nr1|*|36500|",
+            at_ms,
+        )
+
+    def test_prove_poi_partenza(self):
+        session = self.session(start_driver="luca")
+
+        # Prove: il cronometro corre ma la gara non parte, e i giri
+        # delle prove non finiscono nella gara.
+        self.feed(session, self.grid("Prove", "countdown|1800000", laps="3"), 0)
+        self.lap(session, 4, 36_500)
+        self.assertEqual(session.race.stints, [])
+
+        # Sessione di gara ferma in griglia: si aspetta il via.
+        start_ms = 600_000
+        self.feed(session, self.grid("Gara", "text|06:00:00"), start_ms)
+        self.assertEqual(session.race.stints, [])
+
+        # Via.
+        self.feed(session, f"dyn1|countdown|{self.SIX_HOURS_MS}", start_ms + 1_000)
+
+        (stint,) = session.race.stints
+        self.assertEqual(session.current_driver().name, "Luca")
+        self.assertEqual(session.kart_number(stint.kart_id), 18)
+        self.assertEqual((stint.start_lap, stint.start_time_ms), (0, 0))
+
+        self.lap(session, 1, start_ms + 40_000)
+        self.lap(session, 2, start_ms + 76_500)
+
+        self.assertEqual(
+            [lap.lap_number for lap in session.race.laps],
+            [1, 2],
+        )
+
+    def test_gui_aperta_a_gara_iniziata_senza_pit(self):
+        session = self.session()
+
+        remaining_ms = 4 * HOUR_MS
+        self.feed(session, self.grid("Gara", f"countdown|{remaining_ms}", laps="190", on_track="2:00"), 0)
+
+        (stint,) = session.race.stints
+        self.assertEqual(session.current_driver().name, DRIVERS[0])
+        self.assertEqual((stint.start_lap, stint.start_time_ms), (0, 0))
+
+        self.lap(session, 191, 36_500)
+        self.assertEqual(session.race.laps[0].race_time_ms, 2 * HOUR_MS + 36_500)
+
+    def test_gui_aperta_a_gara_iniziata_dopo_i_pit(self):
+        session = self.session()
+
+        remaining_ms = 4 * HOUR_MS
+        self.feed(
+            session,
+            self.grid("Gara", f"countdown|{remaining_ms}", laps="190", pits="3", on_track="0:12"),
+            0,
+        )
+
+        (stint,) = session.race.stints
+        self.assertEqual(stint.start_lap, 190)
+        self.assertEqual(stint.start_time_ms, 2 * HOUR_MS - 12 * 60_000)
+
+    def test_gui_aperta_con_il_kart_ai_box(self):
+        session = self.session()
+
+        remaining_ms = 4 * HOUR_MS
+        self.feed(
+            session,
+            self.grid("Gara", f"countdown|{remaining_ms}", laps="190", pits="3", on_track="12."),
+            0,
+        )
+        self.assertEqual(session.race.stints, [])
+
+        # Uscita dai box con il kart nuovo: lo stint parte adesso.
+        self.feed(session, "r1c4||7\nr1c11||0:00\nr1|*out|0", 20_000)
+
+        (stint,) = session.race.stints
+        self.assertEqual(session.kart_number(stint.kart_id), 7)
+        self.assertEqual(stint.start_time_ms, 2 * HOUR_MS + 20_000)
+        self.assertIsNone(session.pending_pit)
+
+    def test_pilota_di_partenza_sconosciuto(self):
+        with self.assertRaises(ValueError):
+            self.session(start_driver="Nessuno")
+
 if __name__ == "__main__":
     unittest.main()

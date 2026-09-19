@@ -119,8 +119,11 @@ class RaceClock:
             difference = value_ms - previous
 
             if abs(difference) > JUMP_THRESHOLD_MS:
-                # Salto: si riparte da capo su questa lettura.
+                # Salto: si riparte da capo su questa lettura. Scorre
+                # solo se il feed lo dichiara: fra le prove e la gara
+                # arriva "text|06:00:00", fermo fino al via.
                 self._first_value_ms = value_ms
+                self.is_running = declared is not None
 
             elif declared is not None:
                 pass

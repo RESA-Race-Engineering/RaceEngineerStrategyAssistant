@@ -38,6 +38,23 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip()).casefold()
 
 
+def parse_on_track_ms(text: str) -> Optional[int]:
+    """
+    Tempo in pista dall'ultima uscita dai box (colonna "In pista").
+
+    A Kart&Go è in ore e minuti ("1:05") e torna a "0:00" a ogni
+    uscita dai box. Durante la sosta la cella conta i secondi ai box
+    ("12.") e non è un tempo in pista.
+    """
+
+    match = re.fullmatch(r"(\d+):(\d{2})", (text or "").strip())
+
+    if match is None:
+        return None
+
+    return (int(match.group(1)) * 60 + int(match.group(2))) * 60_000
+
+
 # ==============================
 # EVENTI PER IL MOTORE DI GARA
 # ==============================
@@ -147,6 +164,11 @@ class TeamState:
     best_lap_ms: Optional[int] = None
     gap: str = ""
     pit_count: Optional[int] = None
+
+    # Tempo in pista dall'ultima uscita dai box, al minuto; il testo
+    # grezzo serve a capire se la cella sta contando la sosta ai box.
+    on_track_ms: Optional[int] = None
+    on_track_text: str = ""
 
     clock_text: str = ""
     race_time_ms: Optional[int] = None
@@ -458,6 +480,12 @@ class TeamTracker:
 
         self.state.pit_count = parse_int(
             self._cell_by_type(row_id, "pit")
+        )
+
+        self.state.on_track_text = self._cell_by_type(row_id, "otr")
+
+        self.state.on_track_ms = parse_on_track_ms(
+            self.state.on_track_text
         )
 
         self.state.position = parse_int(

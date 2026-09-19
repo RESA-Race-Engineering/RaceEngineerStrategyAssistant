@@ -12,7 +12,7 @@ Tempi in millisecondi interi; None diventa null in JSON.
 
 from typing import Optional
 
-from app.session import RaceSession
+from app.session import RaceSession, _is_practice
 from core.analytics import (
     ANALYSIS_WINDOWS,
     AnalysisWindow,
@@ -453,6 +453,14 @@ def _build(
             {"id": driver_id, "name": name}
             for driver_id, name in drivers.items()
         ],
+        "auto_start": {
+            "enabled": session.auto_start,
+            "driver": drivers.get(
+                session.start_driver_id
+                or (race.drivers[0].id if race.drivers else None)
+            ),
+            "practice": _is_practice(state.session_title),
+        },
         "current": current,
         "pending_pit": pending_dict,
         "pending_laps": len(session.pending_laps),

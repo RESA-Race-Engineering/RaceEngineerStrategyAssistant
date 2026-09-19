@@ -251,7 +251,19 @@ function renderBanners() {
     });
   }
 
-  if (!state.current && (state.pending_laps || state.source.bound)) {
+  const auto = state.auto_start;
+
+  if (!state.current && auto?.enabled) {
+    banners.push({
+      cls: "warn",
+      text: (auto.practice
+        ? `Sessione "${esc(state.race.title)}": la gara si avvierà da sola quando parte la sessione di gara`
+        : "In attesa della partenza: la gara si avvia da sola dal feed") +
+        ` (pilota di partenza: ${esc(auto.driver || "–")}).` +
+        (state.source.bound ? "" : " Squadra non ancora agganciata."),
+      buttons: [["Avvia a mano", "", openStart]],
+    });
+  } else if (!state.current && (state.pending_laps || state.source.bound)) {
     banners.push({
       cls: "warn",
       text: "Gara non avviata: scegliere pilota e kart di partenza." +

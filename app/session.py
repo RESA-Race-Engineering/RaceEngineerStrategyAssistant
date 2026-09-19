@@ -28,6 +28,7 @@ from datetime import datetime
 import threading
 import time
 from pathlib import Path
+import re
 from typing import Optional
 
 from core.models import (
@@ -144,6 +145,11 @@ class RaceSession:
         # Solo per simulazioni e riletture: conferma i pit da sola
         # con il kart del feed e il pilota successivo.
         self.auto_pit = auto_pit
+
+        # Avvio automatico (enable_auto_start): la gara parte da sola
+        # con questo pilota, None = il primo della lista.
+        self.auto_start = False
+        self.start_driver_id: Optional[int] = None
 
         self.tracker = TeamTracker(
             team_name=team_name,
@@ -410,6 +416,103 @@ class RaceSession:
             for event in events:
                 self._handle_event(event)
 
+            self._maybe_auto_start(now_ms)
+
+    # ==============================
+    # AVVIO AUTOMATICO
+    # ==============================
+
+    def enable_auto_start(self, driver_name: str = "") -> None:
+        """
+        La gara si avvia da sola, senza "Avvia gara": il primo stint
+        si apre quando la sessione di gara è in corso e la squadra è
+        agganciata. Senza driver_name parte il primo pilota della lista.
+        """
+
+        self.auto_start = True
+        self.start_driver_id = None
+
+        if not driver_name.strip():
+            return
+
+        for driver in self.race.drivers:
+            if driver.name.strip().casefold() == driver_name.strip().casefold():
+                self.start_driver_id = driver.id
+                return
+
+        raise ValueError(
+            f"Il pilota di partenza '{driver_name}' non è fra i piloti."
+        )
+
+    def _maybe_auto_start(self, now_ms: int) -> None:
+        """
+        Avvia la gara con kart, giro e tempo presi dal feed.
+
+        Vale anche se la GUI parte a gara iniziata: senza pit lo stint
+        in corso è partito con la gara; dopo un pit è partito
+        all'ultima uscita dai box, ricavata dalla colonna "In pista".
+        """
+
+        if (
+            not self.auto_start
+            or self.race.stints
+            or not self.race.drivers
+        ):
+            return
+
+        state = self.tracker.state
+
+        if (
+            state.row_id is None
+            or not state.kart_number
+            or state.in_pit
+            or not self.tracker.clock.is_running
+            or _is_practice(state.session_title)
+        ):
+            return
+
+        # Istante del payload, non dell'orologio locale.
+        race_time_ms = self.tracker.clock.race_time_ms(now_ms)
+
+        if race_time_ms is None:
+            return
+
+        if not state.pit_count:
+            start_lap = 0
+            start_time_ms = 0
+
+        else:
+            # La cella conta la sosta ai box: si aspetta l'uscita.
+            if state.on_track_ms is None and state.on_track_text:
+                return
+
+            start_lap = None
+
+            start_time_ms = (
+                max(0, race_time_ms - state.on_track_ms)
+                if state.on_track_ms is not None
+                else race_time_ms
+            )
+
+        driver_id = (
+            self.start_driver_id
+            or self.race.drivers[0].id
+        )
+
+        self._start(
+            driver_id=driver_id,
+            kart_number=state.kart_number,
+            start_lap=start_lap,
+            start_time_ms=start_time_ms,
+        )
+
+        self._alert(
+            "info",
+            f"Avvio automatico dal feed: tempo di gara "
+            f"{format_time(race_time_ms)}, giro {state.lap_number or 0}, "
+            f"stint iniziato a {format_time(start_time_ms)}.",
+        )
+
     # ==============================
     # EVENTI DEL FEED
     # ==============================
@@ -443,6 +546,12 @@ class RaceSession:
             )
 
         elif isinstance(event, SessionChanged):
+
+            # Sessione nuova prima della partenza: i giri in sospeso
+            # sono delle prove, non della gara.
+            if not self.race.stints:
+                self.pending_laps = []
+
             self._alert(
                 "info",
                 f"Il feed ha ricaricato la sessione ({event.mode}).",
@@ -684,6 +793,7 @@ class RaceSession:
         driver_id: int,
         kart_number,
         start_lap: Optional[int] = None,
+        start_time_ms: Optional[int] = None,
     ) -> None:
         kart_number = _parse_kart_number(kart_number)
 
@@ -702,13 +812,16 @@ class RaceSession:
             self._manual_start_ms = self.now_ms()
             race_time_ms = 0
 
+        if start_time_ms is None:
+            # A zero l'inizio si ricava dal primo giro.
+            start_time_ms = race_time_ms if start_lap > 0 else 0
+
         start_stint(
             race=self.race,
             kart_id=self._ensure_kart(kart_number),
             driver_id=driver_id,
             start_lap=start_lap,
-            # A zero l'inizio si ricava dal primo giro.
-            start_time_ms=race_time_ms if start_lap > 0 else 0,
+            start_time_ms=start_time_ms,
             db=self.db,
             race_id=self.race_id,
         )
@@ -1224,6 +1337,20 @@ class RaceSession:
         )
 
         del self.alerts[:-MAX_ALERTS]
+
+
+# Sessioni che non sono la gara: lì la gara non si avvia da sola.
+# Parole intere: "6 Ore di prova" è una gara, "Prove" no.
+NOT_RACE_TITLE = re.compile(
+    r"\b(prove|libere|libera|qualifica|qualifiche|qualifying"
+    r"|practice|warm[\s-]?up|essais)\b"
+)
+
+
+def _is_practice(title: str) -> bool:
+    """Il titolo della sessione indica prove o qualifiche."""
+
+    return NOT_RACE_TITLE.search((title or "").casefold()) is not None
 
 
 def _is_blank(value) -> bool:

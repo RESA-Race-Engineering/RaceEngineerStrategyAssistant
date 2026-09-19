@@ -76,8 +76,8 @@ Senza `--auto-pit` e più lenta:
 python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
 ```
 
-All'inizio compare "Gara non avviata": **Avvia gara**, scegliere il
-pilota (il kart si prende dal feed). A ogni PIT IN si apre da sola la
+La gara parte da sola al via, con il primo pilota della lista (o
+quello di `--start-driver`) e il kart del feed. A ogni PIT IN si apre da sola la
 finestra del pit: si sceglie il nuovo pilota e si conferma; il kart
 nuovo e la durata arrivano dal feed all'uscita dai box. I giri arrivati
 nel frattempo restano in sospeso e finiscono nello stint giusto.
@@ -97,15 +97,20 @@ arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
    è l'ordine degli stint, il pilota si sceglie a ogni pit) e un
    database solo per questa gara (AAAAMMGG = data della gara, vedi il
    punto 6):
-   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6" --db data/gara_AAAAMMGG.db`
+   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6" --start-driver "Pilota di partenza" --db data/gara_AAAAMMGG.db`
    Se il browser non si apre (per esempio da WSL), aprire a mano
    http://localhost:8765. In alto deve comparire "Diretta · collegato" e,
    quando la griglia ha la squadra, sparisce "squadra non agganciata".
-4. **Avvia gara**: scegliere il pilota di partenza; il kart si prende
-   dal feed (il campo si riempie solo se il feed non lo indica). Si può
-   fare anche a gara iniziata: i giri già arrivati restano in sospeso e
-   vengono attribuiti. Non avviarla durante le prove: la GUI va
-   avviata da capo quando parte la gara.
+4. **La gara parte da sola.** Durante prove e qualifiche (titoli come
+   "Prove", "Qualifiche") e con il cronometro fermo in griglia
+   ("06:00:00") non succede niente; al via il primo stint si apre con
+   il pilota di `--start-driver` (senza, il primo di `--drivers`) e
+   con kart, giro e tempo presi dal feed. Si può aprire la GUI anche a
+   gara iniziata: senza pit lo stint in corso parte da 0:00, dopo un
+   pit dall'ultima uscita dai box (colonna "In pista", al minuto); se
+   il kart è ai box si aspetta che esca. Il banner in alto dice che
+   cosa si sta aspettando; **Avvia a mano** resta come ripiego, e con
+   `--no-auto-start` si torna al solo pulsante **Avvia gara**.
 
 **Durante la gara**
 

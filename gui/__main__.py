@@ -117,6 +117,18 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--start-driver",
+        default="",
+        help="Pilota di partenza per l'avvio automatico (predefinito: il primo di --drivers).",
+    )
+
+    parser.add_argument(
+        "--no-auto-start",
+        action="store_true",
+        help="La gara non parte da sola: si usa il pulsante Avvia gara.",
+    )
+
+    parser.add_argument(
         "--auto-pit",
         action="store_true",
         help="Conferma i pit da solo (solo per simulazioni).",
@@ -175,6 +187,14 @@ def main() -> None:
             ),
             auto_pit=arguments.auto_pit,
         )
+
+    # Con il feed la gara parte da sola quando parte la sessione di
+    # gara, anche se la GUI si apre a gara iniziata.
+    if not arguments.manual and not arguments.no_auto_start:
+        try:
+            session.enable_auto_start(arguments.start_driver)
+        except ValueError as error:
+            raise SystemExit(str(error))
 
     # ----- sorgente -----
 
