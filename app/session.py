@@ -101,6 +101,17 @@ class PendingPit:
     in_race_time_ms: Optional[int]
     out_race_time_ms: Optional[int] = None
 
+    # Il feed ha già segnalato l'uscita dai box.
+    out_seen: bool = False
+
+    # Scelta dell'operatore fatta mentre il kart è ai box: il pit si
+    # registra all'uscita, con il kart indicato dal feed in quel
+    # momento (a Kart&Go il numero cambia durante la sosta).
+    driver_id: Optional[int] = None
+    duration_ms: Optional[int] = None
+    refuel: bool = False
+    tire_change: bool = False
+
     @property
     def measured_ms(self) -> Optional[int]:
         """Durata misurata fra ingresso e uscita dai box."""
@@ -470,7 +481,7 @@ class RaceSession:
 
         self._alert(
             "warning",
-            f"Kart diverso: l'operatore ha indicato "
+            f"Kart diverso: lo stint è sul kart "
             f"{event.operator_value}, il feed dice {event.feed_value}.",
         )
 
@@ -591,8 +602,34 @@ class RaceSession:
             )
 
         self.pending_pit.out_race_time_ms = event.race_time_ms
+        self.pending_pit.out_seen = True
 
         measured_ms = self.pending_pit.measured_ms
+
+        # Pilota già scelto ai box: il kart è quello del feed adesso.
+        if self.pending_pit.driver_id is not None:
+            kart_number = (
+                event.kart_number
+                or self.tracker.state.kart_number
+            )
+
+            if kart_number:
+                pending = self.pending_pit
+
+                self._register_pit(
+                    kart_number=kart_number,
+                    driver_id=pending.driver_id,
+                    duration_ms=pending.duration_ms,
+                    refuel=pending.refuel,
+                    tire_change=pending.tire_change,
+                )
+                return
+
+            self._alert(
+                "error",
+                "PIT OUT senza kart nel feed: confermare il pit "
+                "indicando il kart a mano.",
+            )
 
         if self.auto_pit:
             self.confirm_pit(
@@ -615,14 +652,26 @@ class RaceSession:
     def start_race(
         self,
         driver_id: int,
-        kart_number,
+        kart_number=None,
         start_lap: Optional[int] = None,
     ) -> None:
-        """Apre il primo stint con il pilota e il kart di partenza."""
+        """
+        Apre il primo stint con il pilota e il kart di partenza.
+
+        Senza kart_number vale il kart indicato dal feed.
+        """
 
         with self.lock:
             if self.race.stints:
                 raise ValueError("La gara è già avviata.")
+
+            if _is_blank(kart_number):
+                kart_number = self.tracker.state.kart_number
+
+                if not kart_number:
+                    raise ValueError(
+                        "Il feed non indica il kart: inserirlo a mano."
+                    )
 
             self._start(
                 driver_id=driver_id,
@@ -685,24 +734,77 @@ class RaceSession:
 
     def confirm_pit(
         self,
-        kart_number,
         driver_id: int,
+        kart_number=None,
         duration_ms: Optional[int] = None,
         refuel: bool = False,
         tire_change: bool = False,
     ) -> None:
         """
-        Registra il pit: chiude lo stint e apre il successivo.
+        Conferma il pit con il nuovo pilota.
+
+        Senza kart_number il kart segue la riga della squadra nel feed:
+        se il kart è ancora ai box la scelta resta in attesa e il pit
+        si registra all'uscita, quando il feed ha il kart nuovo.
 
         Senza un PitIn dal feed vale come pit inserito a mano, dopo
         l'ultimo giro registrato.
         """
 
         with self.lock:
-            stint = self.current_stint()
-
-            if stint is None:
+            if self.current_stint() is None:
                 raise ValueError("Nessuno stint aperto: avviare prima la gara.")
+
+            if not any(
+                driver.id == driver_id
+                for driver in self.race.drivers
+            ):
+                raise ValueError(f"Il Pilota {driver_id} non esiste nella gara.")
+
+            pending = self.pending_pit
+
+            if _is_blank(kart_number):
+
+                if pending is not None and not pending.out_seen:
+                    pending.driver_id = driver_id
+                    pending.duration_ms = duration_ms
+                    pending.refuel = refuel
+                    pending.tire_change = tire_change
+
+                    self._alert(
+                        "info",
+                        f"Pit: {self._driver_name(driver_id)} riparte "
+                        f"all'uscita dai box, sul kart indicato dal feed.",
+                    )
+                    return
+
+                kart_number = self.tracker.state.kart_number
+
+                if not kart_number:
+                    raise ValueError(
+                        "Il feed non indica il kart: inserirlo a mano."
+                    )
+
+            self._register_pit(
+                kart_number=kart_number,
+                driver_id=driver_id,
+                duration_ms=duration_ms,
+                refuel=refuel,
+                tire_change=tire_change,
+            )
+
+    def _register_pit(
+        self,
+        kart_number,
+        driver_id: int,
+        duration_ms: Optional[int],
+        refuel: bool,
+        tire_change: bool,
+    ) -> None:
+        """Chiude lo stint in corso e apre il successivo."""
+
+        with self.lock:
+            stint = self.current_stint()
 
             kart_number = _parse_kart_number(kart_number)
             pending = self.pending_pit
@@ -746,7 +848,7 @@ class RaceSession:
 
             self._awaiting_pit_out = (
                 pending is not None
-                and pending.out_race_time_ms is None
+                and not pending.out_seen
             )
 
             self._awaiting_pit_in_ms = (
@@ -1122,6 +1224,12 @@ class RaceSession:
         )
 
         del self.alerts[:-MAX_ALERTS]
+
+
+def _is_blank(value) -> bool:
+    """Campo kart lasciato vuoto: vale il kart indicato dal feed."""
+
+    return value is None or not str(value).strip()
 
 
 def _parse_kart_number(value) -> int:

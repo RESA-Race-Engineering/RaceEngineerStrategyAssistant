@@ -76,11 +76,11 @@ Senza `--auto-pit` e più lenta:
 python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
 ```
 
-All'inizio compare "Gara non avviata": **Avvia gara**, scegliere pilota
-e kart (proposto dal feed). A ogni PIT IN si apre da sola la finestra
-del pit con il kart letto dal feed e la durata misurata: si sceglie il
-nuovo pilota e si conferma. I giri arrivati nel frattempo restano in
-sospeso e finiscono nello stint giusto.
+All'inizio compare "Gara non avviata": **Avvia gara**, scegliere il
+pilota (il kart si prende dal feed). A ogni PIT IN si apre da sola la
+finestra del pit: si sceglie il nuovo pilota e si conferma; il kart
+nuovo e la durata arrivano dal feed all'uscita dai box. I giri arrivati
+nel frattempo restano in sospeso e finiscono nello stint giusto.
 
 ## 5. Il giorno della gara
 
@@ -93,20 +93,31 @@ arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
 2. Leggere il nome esatto con cui è iscritta la squadra:
    `python -m livetiming.watch --club kartandgo`
    (Ctrl+C per uscire; la colonna "Pilota" contiene il nome da usare).
-3. Avviare la GUI con i piloti nell'ordine previsto e un database
-   solo per questa gara (AAAAMMGG = data della gara, vedi il punto 6):
+3. Avviare la GUI con i piloti della squadra (in qualsiasi ordine: non
+   è l'ordine degli stint, il pilota si sceglie a ogni pit) e un
+   database solo per questa gara (AAAAMMGG = data della gara, vedi il
+   punto 6):
    `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6" --db data/gara_AAAAMMGG.db`
    Se il browser non si apre (per esempio da WSL), aprire a mano
    http://localhost:8765. In alto deve comparire "Diretta · collegato" e,
    quando la griglia ha la squadra, sparisce "squadra non agganciata".
-4. **Avvia gara**: pilota di partenza e kart. Si può fare anche a gara
-   iniziata: i giri già arrivati restano in sospeso e vengono attribuiti.
+4. **Avvia gara**: scegliere il pilota di partenza; il kart si prende
+   dal feed (il campo si riempie solo se il feed non lo indica). Si può
+   fare anche a gara iniziata: i giri già arrivati restano in sospeso e
+   vengono attribuiti. Non avviarla durante le prove: la GUI va
+   avviata da capo quando parte la gara.
 
 **Durante la gara**
 
-- A ogni PIT IN si apre la finestra del pit: controllare il kart nuovo
-  (quello del feed è solo una proposta), scegliere il pilota, confermare.
-  Se il kart dichiarato e quello del feed non coincidono compare un
+- A ogni PIT IN si apre la finestra del pit: scegliere il pilota e
+  confermare, anche subito. Il kart non si inserisce: la squadra si
+  segue per nome e il kart nuovo è quello che il feed indica
+  all'uscita dai box (a Kart&Go il numero cambia durante la sosta,
+  a volte due volte). Fino all'uscita il banner mostra il pilota scelto,
+  che si può ancora cambiare. Accanto a ogni pilota ci sono stint e
+  tempo di guida già fatti, per scegliere chi deve ancora guidare.
+- Il campo kart serve solo se il feed non ha il kart: inserito a mano,
+  vale quello. Se in seguito il feed indica un kart diverso compare un
   avviso: il dato non viene mai corretto da solo.
 - Se compare l'avviso "i tempi dei giri sono sfasati" più di una volta,
   annotare l'ora: vuol dire che Apex aggiorna i tempi in un modo diverso

@@ -236,13 +236,18 @@ function renderBanners() {
       ? `ai box da ${fmtDur(now - pending.in_time)}`
       : pending.measured != null ? `sosta misurata ${fmtLap(pending.measured)}` : "";
 
+    const chosen = pending.driver
+      ? ` · riparte ${esc(pending.driver)}, kart dal feed all'uscita`
+      : "";
+
     banners.push({
-      cls: "bad pulse",
+      cls: pending.driver ? "warn" : "bad pulse",
       text: `PIT IN dopo il giro ${pending.lap_before}` +
         (inPit ? ` · ${inPit}` : "") +
-        (pending.feed_kart ? ` · kart dal feed #${esc(pending.feed_kart)}` : "") +
+        chosen +
+        (pending.feed_kart ? ` · kart ora nel feed #${esc(pending.feed_kart)}` : "") +
         (state.pending_laps ? ` · giri in sospeso: ${state.pending_laps}` : ""),
-      buttons: [["Conferma pit", "danger", openPit], ["Falso allarme", "", discardPit]],
+      buttons: [[pending.driver ? "Cambia pilota" : "Conferma pit", "danger", openPit], ["Falso allarme", "", discardPit]],
     });
   }
 
@@ -259,7 +264,7 @@ function renderBanners() {
   if (current && !pending && state.feed.kart && String(current.kart) !== String(state.feed.kart)) {
     banners.push({
       cls: "warn",
-      text: `Kart diverso: l'operatore ha indicato #${current.kart}, il feed dice #${esc(state.feed.kart)}. Verificare.`,
+      text: `Kart diverso: lo stint è sul kart #${current.kart}, il feed dice #${esc(state.feed.kart)}. Verificare.`,
     });
   }
 
@@ -1078,21 +1083,31 @@ function hideTip() {
 // FINESTRE DI DIALOGO
 // ==============================
 
-function fillDrivers(select, selectedId) {
-  select.innerHTML = state.drivers_list
-    .map((d) => `<option value="${d.id}" ${d.id === selectedId ? "selected" : ""}>${esc(d.name)}</option>`)
-    .join("");
+// L'ordine dei piloti non è quello degli stint: nessuno è proposto,
+// e accanto a ogni nome ci sono stint e tempo di guida.
+function fillDrivers(select, selectedId = null) {
+  const stats = new Map((state.drivers || []).map((d) => [d.id, d]));
+  const options = state.drivers_list.map((d) => {
+    const s = stats.get(d.id);
+    const info = s ? ` · ${s.stints} stint, ${fmtDur(s.driving)}` : "";
+    return `<option value="${d.id}" ${d.id === selectedId ? "selected" : ""}>${esc(d.name)}${info}</option>`;
+  });
+  select.innerHTML =
+    `<option value="" disabled ${selectedId == null ? "selected" : ""}>— scegliere —</option>` +
+    options.join("");
 }
 
 function openStart() {
   if (!state) return;
   const form = $("dlg-start").querySelector("form");
-  fillDrivers(form.driver_id, state.suggested_driver);
-  form.kart_number.value = state.feed.kart || "";
+  fillDrivers(form.driver_id);
+  form.kart_number.value = "";
+  form.kart_number.placeholder = state.feed.kart ? `#${state.feed.kart}` : "";
   $("start-hint").textContent = state.feed.kart
-    ? `Il feed indica il kart #${state.feed.kart}.`
+    ? `Il feed indica il kart #${state.feed.kart}: lasciare vuoto per usarlo.`
     : "Nessun kart dal feed: inserirlo a mano.";
   $("dlg-start").showModal();
+  form.driver_id.focus();
 }
 
 function openPit() {
@@ -1103,23 +1118,29 @@ function openPit() {
 
   $("pit-current").innerHTML = `Ora in pista: <b>${esc(current.driver)}</b> sul kart <b>#${current.kart}</b>`;
 
-  const feedKart = pending?.feed_kart && String(pending.feed_kart) !== String(current.kart) ? pending.feed_kart : "";
-  form.kart_number.value = feedKart;
-  fillDrivers(form.driver_id, state.suggested_driver);
+  const feedKart = state.feed.kart || "";
+  const inPit = pending && !pending.out_seen;
+
+  form.kart_number.value = "";
+  form.kart_number.placeholder = inPit ? "dal feed all'uscita" : feedKart ? `#${feedKart}` : "";
+  fillDrivers(form.driver_id, pending?.driver_id ?? null);
   form.duration_s.value = pending?.measured != null ? (pending.measured / 1000).toFixed(1) : "";
   form.refuel.checked = false;
   form.tire_change.checked = false;
 
   $("pit-hint").textContent = pending
     ? `Ingresso dopo il giro ${pending.lap_before}.` +
-      (feedKart ? ` Il feed indica il kart #${feedKart}: controllare.` : " Il feed non ha ancora il nuovo kart.") +
+      (inPit
+        ? " Scegliere il pilota: il kart nuovo si prende dal feed all'uscita dai box."
+        : feedKart ? ` Kart dal feed: #${feedKart}.` : " Il feed non indica il kart: inserirlo a mano.") +
       (pending.measured == null ? " Durata: si riempie all'uscita dai box." : "")
-    : "Pit inserito a mano: vale dopo l'ultimo giro registrato.";
+    : "Pit inserito a mano: vale dopo l'ultimo giro registrato." +
+      (feedKart ? ` Kart vuoto = #${feedKart} dal feed.` : " Inserire il kart.");
 
   $("btn-discard").hidden = !pending;
   pitShownFor = pending ? pending.lap_before : pitShownFor;
   $("dlg-pit").showModal();
-  form.kart_number.focus();
+  form.driver_id.focus();
 }
 
 async function discardPit() {

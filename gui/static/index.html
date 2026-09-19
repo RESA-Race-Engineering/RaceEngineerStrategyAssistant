@@ -200,7 +200,7 @@
     <form method="dialog" data-action="/api/start">
       <h2>Avvio gara</h2>
       <label>Pilota di partenza <select name="driver_id" required></select></label>
-      <label>Kart <input name="kart_number" inputmode="numeric" required autocomplete="off"></label>
+      <label>Kart (vuoto = dal feed) <input name="kart_number" inputmode="numeric" autocomplete="off"></label>
       <p class="hint" id="start-hint"></p>
       <div class="dialog-actions">
         <button value="cancel" formnovalidate>Annulla</button>
@@ -213,8 +213,8 @@
     <form method="dialog" data-action="/api/pit">
       <h2>Pit stop</h2>
       <p class="pit-current" id="pit-current"></p>
-      <label>Nuovo kart <input name="kart_number" inputmode="numeric" required autocomplete="off"></label>
       <label>Nuovo pilota <select name="driver_id" required></select></label>
+      <label>Nuovo kart (vuoto = dal feed) <input name="kart_number" inputmode="numeric" autocomplete="off"></label>
       <label>Durata pit (s) <input name="duration_s" inputmode="decimal" autocomplete="off"></label>
       <div class="checks">
         <label class="check"><input type="checkbox" name="refuel"> Rifornimento</label>

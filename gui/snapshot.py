@@ -401,6 +401,13 @@ def _build(
             "out_time": pending.out_race_time_ms,
             "measured": pending.measured_ms,
             "feed_kart": state.kart_number,
+            "out_seen": pending.out_seen,
+            "driver_id": pending.driver_id,
+            "driver": (
+                drivers.get(pending.driver_id)
+                if pending.driver_id is not None
+                else None
+            ),
         }
 
     return {
@@ -446,11 +453,6 @@ def _build(
             {"id": driver_id, "name": name}
             for driver_id, name in drivers.items()
         ],
-        "suggested_driver": (
-            session.next_driver_id()
-            if race.drivers
-            else None
-        ),
         "current": current,
         "pending_pit": pending_dict,
         "pending_laps": len(session.pending_laps),

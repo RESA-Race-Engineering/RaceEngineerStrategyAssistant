@@ -331,14 +331,11 @@ class TestPitKartAndGo(unittest.TestCase):
 
     # (istante, payload); il valore di "*" è il miglior giro, non
     # il giro appena fatto.
-    BEFORE_PIT_OUT = [
+    PAYLOADS = [
         (37_000, "r7c6|tn|36.831\nr7c9|in|5\nr7|*|36831|"),
         (74_000, "r7c6|tn|36.958\nr7c9|in|6\nr7|*|36831|"),
         (110_000, "r7c2|si|\nr7c12|in|1\nr7|*in|0"),
         (124_000, "r7c4|no1|7"),
-    ]
-
-    AFTER_PIT_OUT = [
         (
             141_000,
             "r7c2|so|\nr7c6|tn|31.342\nr7c9|in|7\n"
@@ -348,7 +345,13 @@ class TestPitKartAndGo(unittest.TestCase):
         (219_000, "r7c6|tn|37.159\nr7c9|in|9\nr7|*|36831|"),
     ]
 
-    def run_pit(self, auto_pit=False, confirm_in_pit=False):
+    def run_pit(self, auto_pit=False, confirm_at=None, kart_number=None):
+        """
+        confirm_at è l'istante dopo il quale l'operatore conferma il
+        pit: 110_000 appena entrato ai box (il feed ha ancora il kart
+        vecchio), 124_000 dopo il cambio kart, 182_000 dopo l'uscita.
+        """
+
         session = RaceSession.create(
             team_name=TEAM,
             driver_names=DRIVERS,
@@ -358,24 +361,22 @@ class TestPitKartAndGo(unittest.TestCase):
 
         session.process_payload(self.GRID, received_at_ms=START_MS)
 
-        # Con auto_pit la gara parte da sola all'aggancio.
+        # Con auto_pit la gara parte da sola all'aggancio; a mano
+        # il kart di partenza si prende dal feed.
         if not session.race.stints:
-            session.start_race(driver_id=1, kart_number=11)
+            session.start_race(driver_id=1)
 
-        for at_ms, payload in self.BEFORE_PIT_OUT:
+        for at_ms, payload in self.PAYLOADS:
             session.process_payload(
                 payload,
                 received_at_ms=START_MS + at_ms,
             )
 
-        if confirm_in_pit:
-            session.confirm_pit(kart_number=7, driver_id=2)
-
-        for at_ms, payload in self.AFTER_PIT_OUT:
-            session.process_payload(
-                payload,
-                received_at_ms=START_MS + at_ms,
-            )
+            if at_ms == confirm_at:
+                session.confirm_pit(
+                    driver_id=2,
+                    kart_number=kart_number,
+                )
 
         return session
 
@@ -385,16 +386,28 @@ class TestPitKartAndGo(unittest.TestCase):
             [(5, 36831), (6, 36958), (8, 40565), (9, 37159)],
         )
 
-        second = session.race.stints[1]
+        first, second = session.race.stints
+
+        self.assertEqual(session.kart_number(first.kart_id), 11)
+        self.assertEqual(session.kart_number(second.kart_id), 7)
 
         self.assertEqual(second.start_lap, 6)
         self.assertEqual(second.start_time_ms, 141_000)
 
         self.assertEqual(session.race.pit_stops[0].duration_ms, 31_000)
-        self.assertEqual(session.kart_number(second.kart_id), 7)
+        self.assertIsNone(session.pending_pit)
 
-    def test_conferma_mentre_il_kart_e_ai_box(self):
-        self.check(self.run_pit(confirm_in_pit=True))
+    def test_kart_dal_feed_confermando_appena_entrato(self):
+        self.check(self.run_pit(confirm_at=110_000))
+
+    def test_kart_dal_feed_confermando_dopo_il_cambio(self):
+        self.check(self.run_pit(confirm_at=124_000))
+
+    def test_kart_dal_feed_confermando_dopo_l_uscita(self):
+        self.check(self.run_pit(confirm_at=182_000))
+
+    def test_kart_a_mano_mentre_il_kart_e_ai_box(self):
+        self.check(self.run_pit(confirm_at=124_000, kart_number=7))
 
     def test_conferma_all_uscita_dai_box(self):
         self.check(self.run_pit(auto_pit=True))
