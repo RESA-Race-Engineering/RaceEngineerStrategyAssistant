@@ -298,5 +298,107 @@ class TestControlloTempiGiro(unittest.TestCase):
         self.assertEqual(len(self.warnings()), 1)
 
 
+class TestPitKartAndGo(unittest.TestCase):
+    """
+    Sequenza di un pit vera, registrata a Kart&Go il 19/09/2026.
+
+    L'uscita dai box fa salire il conto dei giri (con il tempo di
+    sosta come "Ultimo T.") senza passare dal traguardo: il primo giro
+    registrato dello stint nuovo non è start_lap + 1.
+    """
+
+    GRID = (
+        f"init|p|\ndyn1|countdown|{HOUR_MS}\ngrid||<tbody>"
+        '<tr data-id="r0" class="head" data-pos="0">'
+        '<td data-id="c2" data-type="sta"></td>'
+        '<td data-id="c3" data-type="rk">Cla</td>'
+        '<td data-id="c4" data-type="no">Kart</td>'
+        '<td data-id="c5" data-type="dr">Pilota</td>'
+        '<td data-id="c6" data-type="llp">Ultimo T.</td>'
+        '<td data-id="c9" data-type="tlp">Giri</td>'
+        '<td data-id="c10" data-type="">Tempo Pit</td>'
+        '<td data-id="c12" data-type="pit">Pit stop</td></tr>'
+        '<tr data-id="r7" data-pos="1">'
+        '<td data-id="r7c2" class="in"></td>'
+        '<td class="rk"><div><p data-id="r7c3" class="">1</p></div></td>'
+        '<td class="no"><div data-id="r7c4" class="no1">11</div></td>'
+        '<td data-id="r7c5" class="dr">Scuderia Dante</td>'
+        '<td data-id="r7c6" class="ti">36.886</td>'
+        '<td data-id="r7c9" class="in">4</td>'
+        '<td data-id="r7c10" class="to">00:00</td>'
+        '<td data-id="r7c12" class="in"></td></tr></tbody>'
+    )
+
+    # (istante, payload); il valore di "*" è il miglior giro, non
+    # il giro appena fatto.
+    BEFORE_PIT_OUT = [
+        (37_000, "r7c6|tn|36.831\nr7c9|in|5\nr7|*|36831|"),
+        (74_000, "r7c6|tn|36.958\nr7c9|in|6\nr7|*|36831|"),
+        (110_000, "r7c2|si|\nr7c12|in|1\nr7|*in|0"),
+        (124_000, "r7c4|no1|7"),
+    ]
+
+    AFTER_PIT_OUT = [
+        (
+            141_000,
+            "r7c2|so|\nr7c6|tn|31.342\nr7c9|in|7\n"
+            "r7c10|to|00:31\nr7|*out|0",
+        ),
+        (182_000, "r7c2|sr|\nr7c6|tn|40.565\nr7c9|in|8\nr7|*|36831|"),
+        (219_000, "r7c6|tn|37.159\nr7c9|in|9\nr7|*|36831|"),
+    ]
+
+    def run_pit(self, auto_pit=False, confirm_in_pit=False):
+        session = RaceSession.create(
+            team_name=TEAM,
+            driver_names=DRIVERS,
+            config=CONFIG,
+            auto_pit=auto_pit,
+        )
+
+        session.process_payload(self.GRID, received_at_ms=START_MS)
+
+        # Con auto_pit la gara parte da sola all'aggancio.
+        if not session.race.stints:
+            session.start_race(driver_id=1, kart_number=11)
+
+        for at_ms, payload in self.BEFORE_PIT_OUT:
+            session.process_payload(
+                payload,
+                received_at_ms=START_MS + at_ms,
+            )
+
+        if confirm_in_pit:
+            session.confirm_pit(kart_number=7, driver_id=2)
+
+        for at_ms, payload in self.AFTER_PIT_OUT:
+            session.process_payload(
+                payload,
+                received_at_ms=START_MS + at_ms,
+            )
+
+        return session
+
+    def check(self, session):
+        self.assertEqual(
+            [(lap.lap_number, lap.lap_time_ms) for lap in session.race.laps],
+            [(5, 36831), (6, 36958), (8, 40565), (9, 37159)],
+        )
+
+        second = session.race.stints[1]
+
+        self.assertEqual(second.start_lap, 6)
+        self.assertEqual(second.start_time_ms, 141_000)
+
+        self.assertEqual(session.race.pit_stops[0].duration_ms, 31_000)
+        self.assertEqual(session.kart_number(second.kart_id), 7)
+
+    def test_conferma_mentre_il_kart_e_ai_box(self):
+        self.check(self.run_pit(confirm_in_pit=True))
+
+    def test_conferma_all_uscita_dai_box(self):
+        self.check(self.run_pit(auto_pit=True))
+
+
 if __name__ == "__main__":
     unittest.main()

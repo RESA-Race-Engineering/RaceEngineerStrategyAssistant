@@ -163,6 +163,10 @@ class RaceSession:
         # Pit confermato prima che il kart uscisse dai box.
         self._awaiting_pit_out = False
 
+        # Ingresso ai box del pit confermato in attesa dell'uscita,
+        # per misurarne la durata quando il kart esce.
+        self._awaiting_pit_in_ms: Optional[int] = None
+
         # Ultimo giro dal feed: (numero, istante di ricezione).
         self._last_feed_lap: Optional[tuple[int, int]] = None
 
@@ -571,9 +575,12 @@ class RaceSession:
         if self.current_stint() is None:
             return
 
-        # Pit già confermato mentre il kart era ai box.
+        # Pit già confermato mentre il kart era ai box: lo stint
+        # nuovo parte adesso.
         if self.pending_pit is None and self._awaiting_pit_out:
             self._awaiting_pit_out = False
+            self._set_stint_start(event.race_time_ms)
+            self._complete_pit_duration(event.race_time_ms)
             return
 
         # Uscita senza ingresso: aggancio avvenuto durante il pit.
@@ -742,6 +749,19 @@ class RaceSession:
                 and pending.out_race_time_ms is None
             )
 
+            self._awaiting_pit_in_ms = (
+                pending.in_race_time_ms
+                if self._awaiting_pit_out and duration_ms is None
+                else None
+            )
+
+            # A Kart&Go l'uscita dai box conta come giro senza passare
+            # dal traguardo: il primo giro registrato dello stint non è
+            # start_lap + 1 e il core non ricaverebbe mai l'inizio.
+            # Si usa l'istante di uscita, già misurato.
+            if pending is not None:
+                self._set_stint_start(pending.out_race_time_ms)
+
             for lap in laps:
                 if lap.lap_number > lap_before:
                     self._register(lap)
@@ -759,6 +779,68 @@ class RaceSession:
 
                 if result.status == RuleStatus.VIOLATION:
                     self._alert("error", result.message)
+
+    def _set_stint_start(self, race_time_ms: Optional[int]) -> None:
+        """Fissa l'inizio dello stint aperto, se non è ancora noto."""
+
+        stint = self.current_stint()
+
+        if (
+            stint is None
+            or race_time_ms is None
+            or stint.start_time_ms
+        ):
+            return
+
+        stint.start_time_ms = race_time_ms
+
+        if self.db is not None and self.race_id is not None:
+            self.db.update_stint_start(
+                race_id=self.race_id,
+                kart_id=stint.kart_id,
+                stint_number=stint.stint_number,
+                start_time_ms=race_time_ms,
+            )
+
+    def _complete_pit_duration(self, out_race_time_ms: Optional[int]) -> None:
+        """
+        Registra la durata del pit confermato mentre il kart era ai
+        box, ora che l'uscita è nota, e ne verifica il minimo.
+        """
+
+        in_race_time_ms = self._awaiting_pit_in_ms
+        self._awaiting_pit_in_ms = None
+
+        if (
+            in_race_time_ms is None
+            or out_race_time_ms is None
+            or not self.race.pit_stops
+        ):
+            return
+
+        pit_stop = self.race.pit_stops[-1]
+
+        if pit_stop.duration_ms is not None:
+            return
+
+        pit_stop.duration_ms = out_race_time_ms - in_race_time_ms
+
+        if self.db is not None and self.race_id is not None:
+            self.db.update_pit_stop_duration(
+                race_id=self.race_id,
+                lap_before=pit_stop.lap_before,
+                duration_ms=pit_stop.duration_ms,
+            )
+
+        self._alert(
+            "info",
+            f"PIT OUT: sosta di {format_time(pit_stop.duration_ms)}.",
+        )
+
+        result = check_pit_duration(pit_stop.duration_ms, self.race)
+
+        if result.status == RuleStatus.VIOLATION:
+            self._alert("error", result.message)
 
     def discard_pit(self) -> None:
         """

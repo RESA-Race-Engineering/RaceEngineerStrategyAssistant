@@ -473,6 +473,36 @@ class RaceDatabase:
 
         return cursor.lastrowid
 
+    def update_pit_stop_duration(
+        self,
+        race_id: int,
+        lap_before: int,
+        duration_ms: int,
+    ):
+        """
+        Aggiorna la durata di un pit confermato prima dell'uscita
+        dai box.
+        """
+
+        cursor = self.connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE pit_stops
+            SET duration_ms = ?
+            WHERE race_id = ?
+            AND lap_before = ?
+            AND duration_ms IS NULL
+            """,
+            (
+                duration_ms,
+                race_id,
+                lap_before,
+            ),
+        )
+
+        self.connection.commit()
+
     def get_pit_stops(
         self,
         race_id: int,
