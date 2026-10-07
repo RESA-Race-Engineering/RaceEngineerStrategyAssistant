@@ -399,4 +399,8 @@ The application has been tested with real Apex feeds from:
 
 The connection, starting grid, columns, and timer format (milliseconds every 30 seconds) have been verified.
 
-The behaviour of Apex when reporting laps, pit stops and kart changes still needs further verification because no kart was c
+The behaviour of Apex when reporting laps, pit stops and kart changes still needs further verification because no kart was circulating during the available tests.
+
+The simulator is our own reconstruction of the feed behaviour.
+
+For a real race, the recorded journal is the most useful data to keep for verifying and improving the application.
