@@ -393,9 +393,9 @@ I file esportati utilizzano ; come separatore e possono essere aperti con Excel 
 
 L'applicazione è stata testata con feed Apex reali provenienti da:
 
-Pomposa
-Misanino
-Kart&Go
+* Pomposa
+* Misanino
+* Kart&Go
 
 Sono stati verificati:
 
