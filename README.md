@@ -1,70 +1,63 @@
 # Race Engineer
 
-Cruscotto per il live timing Apex: si collega al feed di una gara,
-segue la nostra squadra e mostra nel browser tutto quello che serve
-per decidere la strategia.
+Assistant for Race Engineer in kart endurance race for circuits with Apex live timing: connects to a race feed, tracks our team, and displays everything needed in the browser to make strategic decisions.
 
-## Cosa fa
+## What it does
 
-- Legge in diretta il feed Apex (giri, pit, bandiere, classifica) e ne
-  tiene un registro come copia di sicurezza.
-- Calcola passo, medie e migliori su una finestra scelta (ultimi giri,
-  stint, ultimi minuti), scartando i giri sporchi.
-- Tiene il conto degli stint e dei piloti, con la finestra del prossimo
-  pit e gli stint previsti fino alla fine.
-- Confronta il nostro passo con chi ci sta davanti e dietro, in giri di
-  recupero.
-- Controlla i vincoli del regolamento e segnala gli avvisi.
-- Salva la gara su database, così da poterla riprendere dopo una
-  chiusura o riesaminarla a freddo.
+* Reads the Apex feed live (laps, pit stops, flags, standings) and keeps a local record as a backup.
+* Calculates pace, averages, and best lap times over a selected window (last laps, stint, last few minutes), filtering out dirty laps.
+* Tracks stints and drivers, including the next pit window and planned stints until the end of the race.
+* Compares our pace with the cars ahead and behind over recovery laps.
+* Checks regulatory constraints and displays warnings.
+* Saves the race to a database so it can be resumed after an interruption or reviewed afterwards.
 
-## Requisiti
+## Requirements
 
-Solo Python 3.10 o più recente: nessun pacchetto da installare.
+Python 3.10 or newer only: no additional packages need to be installed.
 
-## Avvio
+## Running
 
-In gara, dal vivo:
+For a live race:
 
-```
-python -m gui --team "Nome Squadra" --drivers "Marco,Luca,Andrea,Giulia"
+```bash
+python -m gui --team "Team Name" --drivers "Marco,Luca,Andrea,Giulia"
 ```
 
-La pagina si apre su http://localhost:8765.
+The page opens at `http://localhost:8765`.
 
-Su una gara simulata, senza feed:
+For a simulated race, without a live feed:
 
-```
+```bash
 python -m livetiming.simulate --out data/sim.jsonl
 python -m gui --replay data/sim.jsonl --speed 60 --auto-pit \
-    --team "Nome Squadra" --drivers "Marco,Luca,Andrea,Giulia"
+    --team "Team Name" --drivers "Marco,Luca,Andrea,Giulia"
 ```
 
-Riprendere l'ultima gara interrotta:
+To resume the last interrupted race:
 
-```
+```bash
 python -m gui --resume
 ```
 
-L'elenco completo delle opzioni (circuito, porta, database, durata,
-inserimento a mano) con `python -m gui --help`.
+For the complete list of options (circuit, port, database, race duration, manual input), run:
 
-## Prove
-
+```bash
+python -m gui --help
 ```
+
+## Tests
+
+```bash
 python -m unittest discover -s tests
 ```
 
-## Dove sta cosa
+## Project structure
 
-- `livetiming/` — collegamento al feed Apex, protocollo, registro,
-  classifica, simulatore.
-- `core/` — modelli, logica di gara, analisi dei tempi, regolamento,
-  strategia.
-- `app/` — sessione di gara e sorgenti (diretta, rilettura).
-- `gui/` — server e pagina del cruscotto.
-- `database/` — salvataggio della gara ed esportazione CSV.
-- `tests/` — prove automatiche.
+* `livetiming/` — Apex feed connection, protocol, race record, standings, and simulator.
+* `core/` — models, race logic, lap-time analysis, regulations, and strategy.
+* `app/` — race session and data sources (live, replay).
+* `gui/` — server and dashboard interface.
+* `database/` — race storage and CSV export.
+* `tests/` — automated tests.
 
-Per la guida passo passo, con cosa guardare in ogni scheda, vedi
-[GUIDA.md](GUIDA.md).
+For the step-by-step guide, including what to look at in each dashboard tab, see [GUIDE.md](GUIDE.md).
