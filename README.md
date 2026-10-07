@@ -20,7 +20,7 @@ Python 3.10 or newer only: no additional packages need to be installed.
 For a live race:
 
 ```bash
-python -m gui --team "Team Name" --drivers "Marco,Luca,Andrea,Giulia"
+python -m gui --team "Team Name" --drivers "Marco,Dante,Massimo,Mario"
 ```
 
 The page opens at `http://localhost:8765`.
@@ -30,7 +30,7 @@ For a simulated race, without a live feed:
 ```bash
 python -m livetiming.simulate --out data/sim.jsonl
 python -m gui --replay data/sim.jsonl --speed 60 --auto-pit \
-    --team "Team Name" --drivers "Marco,Luca,Andrea,Giulia"
+    --team "Team Name" --drivers "Marco,Dante,Massimo,Mario"
 ```
 
 To resume the last interrupted race:
