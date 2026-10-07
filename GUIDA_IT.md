@@ -194,20 +194,6 @@ Il pulsante **Esporta CSV** (punto 5, "Dopo la gara") funziona anche a
 gara in corso: file con `;` che si aprono in Excel su qualsiasi
 computer.
 
-## Cosa è cambiato nel codice esistente
-
-- `database/db.py`: tolti i metodi `update_stint_*` duplicati; nuovi
-  `load_race()` e `get_last_race_id()`; `RaceDatabase(..., check_same_thread=False)`
-  per l'uso dalla GUI, che gira su più thread; nuovo
-  `update_pit_stop_duration()`, per la durata di un pit confermato
-  mentre il kart era ancora ai box.
-- `core/analytics.py`: le finestre valgono per tutta la squadra e non
-  più per un solo kart (`get_laps_for_window` non prende più `kart_id`),
-  lo "stint corrente" funziona anche con lo stint aperto, ci sono le
-  finestre a tempo, i giri puliti e la tendenza.
-- `core/strategy.py` (nuovo): finestra di pit, passo di piloti e stint,
-  classifica dei kart.
-- `gui/main_window.py` (vuoto) sostituito dalla GUI web in `gui/`.
 
 ## Limiti noti
 
