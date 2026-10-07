@@ -1,4 +1,4 @@
-# Race Engineer — User Guide
+# Race Engineer Strategy Assistant— User Guide
 
 This guide explains how to test the project, run a simulated race, and use the application during a real race.
 
