@@ -67,7 +67,7 @@ python -m livetiming.simulate --out data/sim.jsonl
 Avviare la GUI utilizzando la gara simulata:
 
 ```bash
-python -m gui --replay data/sim.jsonl --speed 60 --auto-pit --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
+python -m gui --replay data/sim.jsonl --speed 60 --auto-pit --team "Scuderia Arcobaleno" --drivers "Marco,Dante,Massimo,Mario,Luigi,Yoshi"
 ```
 
 La dashboard viene aperta all'indirizzo:
@@ -148,7 +148,7 @@ I giri sporchi vengono mostrati nei grafici come triangoli nella parte superiore
 Per testare manualmente i pit stop, rimuovere `--auto-pit` e ridurre la velocità della simulazione:
 
 ```bash
-python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
+python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Arcobaleno" --drivers "Marco,Dante,Massimo,Mario,Luigi,Yoshi"
 ```
 
 All'inizio, la finestra per la scelta del pilota si apre automaticamente.
@@ -172,7 +172,7 @@ La dashboard funziona localmente e non richiede una connessione Internet.
 2. Controllare il nome esatto della squadra registrato nel sistema di cronometraggio:
 
 ```bash
-python -m livetiming.watch --club kartandgo
+python -m livetiming.watch --club "NOME ESATTO KARTODROMO"
 ```
 
 Premere `Ctrl+C` per uscire.
@@ -289,7 +289,7 @@ Se l'endpoint `config.js` di Apex non risponde, utilizzare:
 python -m gui --apex-port 9230
 ```
 
-`9230` è la porta utilizzata da Kart&Go.
+`9230` è la porta utilizzata da Apex Timing.
 
 ### Dopo la gara
 
