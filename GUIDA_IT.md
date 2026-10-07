@@ -286,10 +286,10 @@ Attenzione: da questi dispositivi è possibile anche confermare i pit stop.
 Se l'endpoint `config.js` di Apex non risponde, utilizzare:
 
 ```bash
-python -m gui --apex-port 9230
+python -m gui --apex-port [PORTA KARTODROMO]
 ```
 
-`9230` è la porta utilizzata da Apex Timing.
+[PORTA KARTODROMO] è la porta utilizzata dal kartodromo.
 
 ### Dopo la gara
 
