@@ -1,204 +1,328 @@
-# Guida rapida: prove, gara simulata e GUI
+# Race Engineer Strategy Assistant — Guida all'utilizzo
 
-Serve solo Python 3.10 o più recente: nessun pacchetto da installare,
-nessuna connessione internet per la GUI (solo per il feed Apex).
+Questa guida spiega come testare il progetto, eseguire una gara simulata e utilizzare l'applicazione durante una gara reale.
 
-Nei comandi qui sotto `python` va adattato al sistema: su Windows
-`.\.venv\Scripts\python.exe` (o `python`), su Linux e WSL `python3`.
-Tutti i comandi vanno lanciati dalla cartella del progetto.
+È richiesto Python 3.10 o superiore. Non sono necessari pacchetti aggiuntivi.
 
-## 1. Aggiornare
+Tutti i comandi devono essere eseguiti dalla cartella del progetto.
 
-```
+Su Windows, sostituire `python` con `.\.venv\Scripts\python.exe` (oppure `python`).
+Su Linux e WSL, usare `python3` se necessario.
+
+## 1. Aggiornare il progetto
+
+Prima di eseguire test o utilizzare il programma durante una gara:
+
+```bash
 git pull
 ```
 
-## 2. Prove automatiche
+## 2. Eseguire i test
 
-```
+Eseguire i test automatici:
+
+```bash
 python -m unittest discover -s tests
+```
+
+Il comando dovrebbe terminare con:
+
+```text
+OK
+```
+
+È inoltre possibile eseguire il programma principale di test:
+
+```bash
 python main.py
 ```
 
-Il primo comando deve finire con `OK`, il secondo con
-`TEST COMPLETATO`. `main.py` scrive in `data/race_engineer.db`, che ora
-è escluso da git.
+Dovrebbe terminare con:
 
-## 3. Gara simulata
-
-Il simulatore crea una gara finta di 6 ore nello stesso formato del
-feed Apex: 16 squadre, 14 pit a testa, kart che girano fra le squadre,
-una bandiera gialla fra 2:10 e 2:14. La gara è sempre la stessa, quindi
-il file non è su git: si rigenera in un secondo.
-
+```text
+TEST COMPLETATO
 ```
+
+`main.py` scrive nel file `data/race_engineer.db`, che è escluso da Git.
+
+## 3. Eseguire una gara simulata
+
+Il simulatore genera una gara di sei ore utilizzando lo stesso formato del feed Apex.
+
+La simulazione comprende:
+
+* 16 squadre
+* 14 pit stop per squadra
+* Kart che ruotano tra le squadre
+* Una bandiera gialla tra le 2:10 e le 2:14
+
+La simulazione è deterministica, quindi il file non deve essere salvato su Git e può essere rigenerato in qualsiasi momento.
+
+```bash
 python -m livetiming.simulate --out data/sim.jsonl
 ```
 
-## 4. GUI sulla gara simulata
+## 4. Avviare la GUI con la simulazione
 
-```
+Avviare la GUI utilizzando la gara simulata:
+
+```bash
 python -m gui --replay data/sim.jsonl --speed 60 --auto-pit --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
 ```
 
-Si apre il browser su http://localhost:8765 (altrimenti aprirlo a mano).
-`--speed 60` fa scorrere 6 ore in 6 minuti; `--auto-pit` conferma i pit
-da solo. Questa modalità non scrive nel database. Per fermare: Ctrl+C.
+La dashboard viene aperta all'indirizzo:
 
-Cosa guardare:
-
-- **Barra in alto**: posizione, distacco, giro, tempo di gara e tempo
-  mancante, bandiera, stato del feed. Il menu **Analisi** sceglie la
-  finestra (ultimi N giri, stint, ultimi N minuti): vale insieme per
-  noi, per i concorrenti e per il grafico.
-- **Gara**: pilota e kart attuali, durata dello stint rispetto ai 45
-  minuti, ultimo giro, media e migliore nella finestra, **prossimo pit**
-  con la sua finestra. Grafico dei tempi nostro e di chi ci sta davanti e
-  dietro, con "recuperiamo X s/giro, aggancio in N giri". In basso la
-  linea degli stint con la finestra di pit e gli stint previsti.
-- **Classifica**: tutte le squadre con le statistiche sulla finestra.
-- **Piloti e stint**: tutta la gara colorata per pilota, passo di ogni
-  pilota, tabella degli stint (clic su una riga per analizzarlo). Nella
-  simulazione Paolo è volutamente il più lento.
-- **Kart**: classifica dei kart calcolata sui giri di tutte le squadre
-  (due kart simulati sono volutamente lenti).
-- **Regole e registro**: controlli del regolamento, avvisi, pit, eventi.
-
-Le medie escludono i giri "sporchi" (sopra il 107% della mediana: giro
-con il pit, bandiera gialla), che nei grafici diventano triangoli in
-alto.
-
-### Provare il flusso del pit a mano
-
-Senza `--auto-pit` e più lenta:
-
+```text
+http://localhost:8765
 ```
+
+Se il browser non si apre automaticamente, aprire manualmente l'indirizzo.
+
+Con `--speed 60`, la gara di sei ore viene eseguita in circa sei minuti.
+
+`--auto-pit` conferma automaticamente i pit stop.
+
+Questa modalità non scrive nel database.
+
+Per interrompere l'applicazione, premere `Ctrl+C`.
+
+### Cosa controllare
+
+**Barra superiore**
+
+Mostra le principali informazioni sulla gara:
+
+* Posizione
+* Distacco
+* Giro
+* Tempo di gara e tempo rimanente
+* Bandiera
+* Stato del feed
+
+Il menu **Analisi** permette di scegliere la finestra di analisi: ultimi N giri, stint corrente o ultimi N minuti. La finestra selezionata viene applicata alla squadra, ai concorrenti e ai grafici.
+
+**Gara**
+
+Mostra:
+
+* Pilota e kart attuali
+* Durata dello stint rispetto al limite di 45 minuti
+* Ultimo giro, media e miglior tempo nella finestra selezionata
+* Prossimo pit e relativa finestra
+* Confronto del passo con le vetture davanti e dietro
+* Tempo di recupero stimato e numero di giri necessari per raggiungere la vettura davanti
+* Timeline degli stint, comprese le finestre dei pit e gli stint previsti
+
+**Classifica**
+
+Mostra tutte le squadre e le relative statistiche per la finestra di analisi selezionata.
+
+**Piloti e stint**
+
+Mostra l'intera gara suddivisa per pilota, il passo di ogni pilota e una tabella degli stint.
+
+Cliccando su uno stint è possibile analizzarlo.
+
+Nella simulazione, Paolo è volutamente il pilota più lento.
+
+**Kart**
+
+Mostra la classifica dei kart calcolata sui giri registrati da tutte le squadre.
+
+Due kart simulati sono volutamente più lenti degli altri.
+
+**Regole e registro**
+
+Mostra i controlli del regolamento, gli avvisi, i pit stop e gli eventi della gara.
+
+### Filtro dei giri
+
+Le medie e le analisi del passo escludono i giri sporchi.
+
+Un giro viene considerato sporco quando supera il 107% della mediana dei tempi sul giro, ad esempio a causa di un pit stop o di una bandiera gialla.
+
+I giri sporchi vengono mostrati nei grafici come triangoli nella parte superiore.
+
+### Testare manualmente il flusso dei pit stop
+
+Per testare manualmente i pit stop, rimuovere `--auto-pit` e ridurre la velocità della simulazione:
+
+```bash
 python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
 ```
 
-Al via si apre da sola la scelta del pilota di partenza (tempo, giro e
-kart arrivano dal feed). A ogni PIT IN si apre da sola la
-finestra del pit: si sceglie il nuovo pilota e si conferma; il kart
-nuovo e la durata arrivano dal feed all'uscita dai box. I giri arrivati
-nel frattempo restano in sospeso e finiscono nello stint giusto.
+All'inizio, la finestra per la scelta del pilota si apre automaticamente.
+
+Quando viene rilevato un **PIT IN**, si apre automaticamente la finestra del pit. Selezionare il pilota successivo e confermare la sosta.
+
+Il nuovo kart e la durata dello stint vengono presi dal feed quando il kart esce dai box.
+
+I giri ricevuti mentre il pit viene elaborato rimangono in sospeso e vengono assegnati allo stint corretto una volta completata la sosta.
 
 ## 5. Il giorno della gara
 
-Serve internet sul portatile (anche l'hotspot del telefono): il feed
-arriva da `live-data.apex-timing.com`. La GUI in sé funziona offline.
+Per ricevere il feed Apex è necessario avere una connessione Internet sul portatile. È sufficiente anche l'hotspot del telefono.
 
-**Prima della partenza**
+La dashboard funziona localmente e non richiede una connessione Internet.
 
-1. `git pull` e le prove del punto 2.
-2. Leggere il nome esatto con cui è iscritta la squadra:
-   `python -m livetiming.watch --club kartandgo`
-   (Ctrl+C per uscire; la colonna "Pilota" contiene il nome da usare).
-3. Avviare la GUI con i piloti della squadra (in qualsiasi ordine: non
-   è l'ordine degli stint, il pilota si sceglie a ogni pit) e un
-   database solo per questa gara (AAAAMMGG = data della gara, vedi il
-   punto 6):
-   `python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6" --db data/gara_AAAAMMGG.db`
-   Se il browser non si apre (per esempio da WSL), aprire a mano
-   http://localhost:8765. In alto deve comparire "Diretta · collegato" e,
-   quando la griglia ha la squadra, sparisce "squadra non agganciata".
-4. **Il via lo prende il feed, il pilota di partenza si sceglie qui.**
-   Con **Scegli pilota di partenza** (banner in alto) si indica chi
-   parte, come a un pit; si può fare subito o anche dopo il via. Durante
-   prove e qualifiche (titoli come "Prove", "Qualifiche") e con il
-   cronometro fermo in griglia ("06:00:00") non succede niente; al via
-   tempo, giro e kart si prendono dal feed. Se il pilota non è ancora
-   scelto, la finestra si apre da sola e i giri restano in sospeso
-   fino alla scelta: lo stint parte comunque dal via. Si può aprire la GUI anche a
-   gara iniziata: senza pit lo stint in corso parte da 0:00, dopo un
-   pit dall'ultima uscita dai box (colonna "In pista", al minuto); se
-   il kart è ai box si aspetta che esca. Il banner in alto dice che
-   cosa si sta aspettando. Scrivendo un kart nella finestra la gara
-   parte subito, a mano; con `--no-auto-start` si torna al solo
-   pulsante **Avvia gara**.
+### Prima della gara
 
-**Durante la gara**
+1. Aggiornare il progetto ed eseguire i test descritti nella Sezione 2.
 
-- A ogni PIT IN si apre la finestra del pit: scegliere il pilota e
-  confermare, anche subito. Il kart non si inserisce: la squadra si
-  segue per nome e il kart nuovo è quello che il feed indica
-  all'uscita dai box (a Kart&Go il numero cambia durante la sosta,
-  a volte due volte). Fino all'uscita il banner mostra il pilota scelto,
-  che si può ancora cambiare. Accanto a ogni pilota ci sono stint e
-  tempo di guida già fatti, per scegliere chi deve ancora guidare.
-- Il campo kart serve solo se il feed non ha il kart: inserito a mano,
-  vale quello. Se in seguito il feed indica un kart diverso compare un
-  avviso: il dato non viene mai corretto da solo.
-- Se compare l'avviso "i tempi dei giri sono sfasati" più di una volta,
-  annotare l'ora: vuol dire che Apex aggiorna i tempi in un modo diverso
-  da quello previsto.
-- Se il feed cade: **Giro a mano** e **PIT** funzionano senza feed.
-  Senza feed fin dall'inizio: aggiungere `--manual`.
-- Se il programma si chiude:
-  `python -m gui --resume --db data/gara_AAAAMMGG.db` riprende la gara
-  dal database (stesso `--db` usato all'avvio).
-- Per vedere la pagina dai telefoni sulla stessa rete: aggiungere
-  `--host 0.0.0.0` (attenzione: da lì si possono anche confermare i pit).
-- Se `config.js` di Apex non risponde: aggiungere `--apex-port 9230`
-  (la porta di Kart&Go).
+2. Controllare il nome esatto della squadra registrato nel sistema di cronometraggio:
 
-**Dopo la gara**
-
-- **Esporta CSV** (oppure
-  `python -m database.csv_export --db data/gara_AAAAMMGG.db`): cartella
-  `data/export/gara_<id>`, file con `;` che si aprono in Excel.
-- **Conservare `data/journal_<data>.jsonl`**: è la registrazione
-  completa del feed e serve a verificare come Apex segnala giri e pit.
-
-## 6. Il database
-
-Il database è SQLite: un unico file, scritto dalla libreria standard di
-Python. Per far girare il programma non serve installare nessun DBMS;
-per consultarlo basta un programma che apra i file SQLite (DB Browser
-for SQLite, DBeaver, ...).
-
-**Cosa ci finisce e quando**
-
-- In diretta e in modalità manuale la GUI scrive ogni giro, stint, pit
-  ed evento nel momento in cui succede. In rilettura (`--replay`) non
-  scrive niente.
-- Senza `--db` il file è `data/race_engineer.db`, lo stesso in cui
-  scrive `python main.py`: lì ci sono anche le gare di prova
-  ("Test Race"). Per questo la gara vera va su un file suo, con `--db`
-  (punto 5), e lo stesso `--db` va ripetuto con `--resume` e con
-  `database.csv_export`.
-
-**Non aprire il file mentre la GUI è accesa**
-
-Se un altro programma tiene aperto il database mentre la GUI scrive,
-la GUI trova il file bloccato ("database is locked"): non si chiude, ma
-il giro o il pit di quel momento può mancare nel database. Aprirlo da
-Windows attraverso `\\wsl$\...` è ancora peggio: su quel percorso i
-blocchi di SQLite non sono affidabili e il file si può rovinare.
-
-Durante la gara si lavora quindi su una copia. Questo comando la crea
-in modo coerente anche con la GUI accesa:
-
-```
-python -c "import sqlite3; sqlite3.connect('data/gara_AAAAMMGG.db').backup(sqlite3.connect('data/copia.db'))"
+```bash
+python -m livetiming.watch --club kartandgo
 ```
 
-La copia si apre senza rischi: da Windows, sullo stesso portatile, è in
-`\\wsl$\Ubuntu\<cartella del progetto>\data\copia.db`; per un altro
-computer si passa con una chiavetta o in chat. Per avere dati più
-recenti si rilancia il comando, dopo aver chiuso la copia nel
-programma che la stava leggendo.
+Premere `Ctrl+C` per uscire.
 
-**Senza un programma per SQLite**
+Utilizzare esattamente il nome mostrato nel sistema.
 
-Il pulsante **Esporta CSV** (punto 5, "Dopo la gara") funziona anche a
-gara in corso: file con `;` che si aprono in Excel su qualsiasi
-computer.
+3. Avviare la GUI con il nome della squadra e tutti i piloti:
 
+```bash
+python -m gui --team "NOME ESATTO" --drivers "Pilota1,Pilota2,Pilota3,Pilota4,Pilota5,Pilota6" --db data/gara_AAAAMMGG.db
+```
 
-## Limiti noti
+L'ordine dei piloti non determina l'ordine degli stint. Il pilota viene scelto a ogni pit stop.
 
-Verificato su feed veri (Pomposa, Misanino, Kart&Go): collegamento,
-griglia, colonne, formato del cronometro (millisecondi ogni 30 s).
-Ancora da verificare, perché nessun kart girava: come Apex segnala giri,
-pit e cambi kart. Il simulatore è una nostra ricostruzione; il journal
-della gara vera è la cosa più utile da portare a casa.
+Se il browser non si apre automaticamente, aprire:
+
+```text
+http://localhost:8765
+```
+
+Nella barra superiore dovrebbe comparire:
+
+```text
+Diretta · collegato
+```
+
+Quando la squadra viene trovata nella griglia di partenza, il messaggio relativo alla squadra non agganciata scompare.
+
+4. Selezionare il pilota di partenza.
+
+Il via della gara viene determinato dal feed. Il pilota di partenza viene selezionato manualmente tramite **Scegli pilota di partenza**.
+
+È possibile farlo prima o dopo la partenza.
+
+Durante prove e qualifiche, e mentre il cronometro è fermo sulla griglia, i dati di gara non vengono elaborati. Al via, il tempo di gara, il giro e il kart vengono presi dal feed.
+
+Se non è stato selezionato un pilota di partenza, la finestra di selezione si apre automaticamente e i giri ricevuti rimangono in sospeso fino alla scelta del pilota.
+
+Il primo stint inizia comunque dalla partenza effettiva della gara.
+
+Se la GUI viene avviata quando la gara è già iniziata:
+
+* senza un pit precedente, lo stint corrente parte da `0:00`;
+* dopo un pit, parte dall'ultima uscita dai box;
+* se il kart è ancora ai box, l'applicazione attende che esca.
+
+Il banner superiore mostra cosa sta aspettando l'applicazione.
+
+È inoltre possibile inserire manualmente un kart per avviare immediatamente la gara.
+
+Con `--no-auto-start` è possibile disabilitare l'avvio automatico e utilizzare nuovamente il pulsante **Avvia gara**.
+
+### Durante la gara
+
+**Pit stop**
+
+A ogni **PIT IN**, la finestra del pit si apre automaticamente.
+
+Selezionare il pilota successivo e confermare la sosta.
+
+Normalmente non è necessario inserire manualmente il numero del kart. La squadra viene seguita tramite il nome e il nuovo kart viene ricavato dal feed quando esce dai box.
+
+A Kart&Go, il numero del kart può cambiare durante la sosta, anche più di una volta.
+
+Fino all'uscita dai box, il pilota selezionato viene mostrato nel banner e può ancora essere modificato.
+
+Per ogni pilota vengono inoltre mostrati il numero di stint completati e il tempo di guida già effettuato, per facilitare la scelta del pilota successivo.
+
+**Inserimento manuale del kart**
+
+Il campo kart è necessario solo quando il feed non fornisce il numero del kart.
+
+Se viene inserito manualmente un kart e successivamente il feed ne indica uno diverso, viene mostrato un avviso. Il valore inserito manualmente non viene mai modificato automaticamente.
+
+**Avvisi sui tempi**
+
+Se l'avviso **i tempi dei giri sono sfasati** compare più di una volta, annotare l'orario.
+
+Questo indica che Apex potrebbe aggiornare i tempi sul giro in modo diverso da quello previsto.
+
+**Perdita del feed**
+
+Se il feed live si interrompe, **Giro a mano** e **PIT** possono comunque essere utilizzati.
+
+Per eseguire la gara interamente senza feed, avviare l'applicazione con:
+
+```bash
+python -m gui --manual
+```
+
+**Riavvio dell'applicazione**
+
+Se l'applicazione si chiude, è possibile riprendere la gara utilizzando lo stesso database:
+
+```bash
+python -m gui --resume --db data/gara_AAAAMMGG.db
+```
+
+**Accesso da altri dispositivi**
+
+Per accedere alla dashboard da telefoni o altri dispositivi collegati alla stessa rete:
+
+```bash
+python -m gui --host 0.0.0.0
+```
+
+Attenzione: da questi dispositivi è possibile anche confermare i pit stop.
+
+**Configurazione Apex**
+
+Se l'endpoint `config.js` di Apex non risponde, utilizzare:
+
+```bash
+python -m gui --apex-port 9230
+```
+
+`9230` è la porta utilizzata da Kart&Go.
+
+### Dopo la gara
+
+Esportare i dati della gara utilizzando il pulsante **Esporta CSV** oppure:
+
+```bash
+python -m database.csv_export --db data/gara_AAAAMMGG.db
+```
+
+I file esportati vengono salvati in:
+
+```text
+data/export/gara_<id>
+```
+
+I file CSV utilizzano `;` come separatore e possono essere aperti direttamente con Excel.
+
+Conservare:
+
+```text
+data/journal_<data>.jsonl
+```
+
+Questo file contiene la registrazione completa del feed Apex ed è utile per verificare come Apex ha segnalato giri e pit stop.
+
+## 6. Database
+
+L'applicazione utilizza SQLite.
+
+Non è necessario installare un server database separato.
+
+Un database SQLite può essere aperto con programmi come DB Browser for SQLite o DBeaver.
+
+### Contenuto del database
+
+In modalità live e manuale, la GUI salva giri, stint,
