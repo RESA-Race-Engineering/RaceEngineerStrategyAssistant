@@ -67,7 +67,7 @@ python -m livetiming.simulate --out data/sim.jsonl
 Start the GUI using the simulated race:
 
 ```bash
-python -m gui --replay data/sim.jsonl --speed 60 --auto-pit --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
+python -m gui --replay data/sim.jsonl --speed 60 --auto-pit --team "Scuderia Arcobaleno" --drivers "Marco,Dante,Massimo,Mario,Luigi,Yoshi"
 ```
 
 The dashboard opens at:
@@ -148,7 +148,7 @@ Dirty laps are displayed as triangles at the top of the graphs.
 To test pit stops manually, remove `--auto-pit` and reduce the simulation speed:
 
 ```bash
-python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Dante" --drivers "Marco,Luca,Andrea,Giulia,Paolo,Sara"
+python -m gui --replay data/sim.jsonl --speed 10 --team "Scuderia Arcobaleno" --drivers "Marco,Dante,Massimo,Mario,Luigi,Yoshi"
 ```
 
 At the start, the driver selection window opens automatically.
@@ -172,7 +172,7 @@ The dashboard itself works locally and does not require an internet connection.
 2. Check the exact team name registered with the timing system:
 
 ```bash
-python -m livetiming.watch --club kartandgo
+python -m livetiming.watch --club "EXACT CIRCUIT NAME"
 ```
 
 Press `Ctrl+C` to exit.
@@ -286,10 +286,10 @@ Be aware that pit stops can also be confirmed from those devices.
 If the Apex `config.js` endpoint does not respond, use:
 
 ```bash
-python -m gui --apex-port 9230
+python -m gui --apex-port [PORT NUMBER]
 ```
 
-`9230` is the Kart&Go port.
+[PORT NUMBER] is the circuit port.
 
 ### After the race
 
