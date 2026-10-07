@@ -331,13 +331,17 @@ La modalità replay (--replay) non scrive nel database.
 
 Se non viene specificata l'opzione --db, il database predefinito è:
 
+```text
 data/race_engineer.db
+```
 
 È anche il database utilizzato da python main.py, quindi può contenere gare di test come Test Race.
 
 Per una gara reale, utilizzare sempre un database separato:
 
+```bash
 --db data/gara_AAAAMMGG.db
+```
 
 Utilizzare lo stesso percorso del database quando si riprende la gara o si esportano i dati.
 
@@ -345,13 +349,17 @@ Non aprire il database mentre la GUI è in esecuzione
 
 Aprire il database con un altro programma mentre la GUI vi sta scrivendo può causare l'errore:
 
+```text
 database is locked
+```
 
 La GUI continuerà a funzionare, ma il giro o il pit del momento potrebbero non essere salvati.
 
 Aprire il database tramite Windows utilizzando:
 
+```text
 \\wsl$\...
+```
 
 è particolarmente rischioso, perché su questo percorso il meccanismo di blocco dei file di SQLite non è affidabile e il database potrebbe danneggiarsi.
 
@@ -359,13 +367,17 @@ Creare una copia del database
 
 Per consultare il database mentre la GUI è in esecuzione, creare una copia coerente:
 
+```bash
 python -c "import sqlite3; sqlite3.connect('data/gara_AAAAMMGG.db').backup(sqlite3.connect('data/copia.db'))"
+```
 
 La copia può essere aperta in sicurezza.
 
 Da Windows, sullo stesso portatile, si trova in:
 
+```text
 \\wsl$\Ubuntu\<cartella-progetto>\data\copia.db
+```
 
 Per utilizzarla su un altro computer, trasferire la copia tramite chiavetta USB o altro metodo appropriato.
 
@@ -377,7 +389,7 @@ La funzione Esporta CSV può essere utilizzata anche durante una gara.
 
 I file esportati utilizzano ; come separatore e possono essere aperti con Excel su qualsiasi computer.
 
-7. Limiti noti
+## 7. Limiti noti
 
 L'applicazione è stata testata con feed Apex reali provenienti da:
 
