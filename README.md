@@ -1,4 +1,4 @@
-# Race Engineer
+# Race Engineer Strategy Assistant
 
 Assistant for Race Engineer in kart endurance race for circuits with Apex live timing: connects to a race feed, tracks our team, and displays everything needed in the browser to make strategic decisions.
 
