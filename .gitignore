@@ -1,6 +1,7 @@
 __pycache__/
 .claude/
 data/*.db
+database/*.db
 data/*.jsonl
 data/export/
 .db
